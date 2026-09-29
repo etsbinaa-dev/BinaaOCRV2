@@ -49,9 +49,9 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 2. النسخ الاحتياطي: الملف + كلمة السر في مدير كلمات مرور، ونسخة غير متصلة (USB).
 3. GitHub → Settings → Secrets and variables → Actions:
    - `BINAA_V2_KEYSTORE_BASE64` = ناتج `base64 -w0 binaa-ocr-v2.jks`
-   - `BINAA_V2_KEYSTORE_PASSWORD` = كلمة السر
-   - `BINAA_V2_KEY_ALIAS` = `binaa-ocr-v2`
-   - `BINAA_V2_KEY_PASSWORD` = كلمة السر نفسها
+   - `BINAA_V2_KEYSTORE_PASSWORD` = كلمة السر (تُستخدم أيضًا كلمةً لسر المفتاح، كما في PKCS12)
+
+   الاسم المستعار `binaa-ocr-v2` مكتوب مباشرة في الـworkflow (ليس سرًّا).
 4. البصمة العامة: ناتج
    `keytool -list -v -keystore binaa-ocr-v2.jks -alias binaa-ocr-v2 | grep SHA256`
    يوضع في `signing/v2-cert-sha256.txt`. CI يرفض أي APK إصدار لا يطابقها.

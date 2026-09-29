@@ -26,19 +26,23 @@ jobs:
       - name: Restore V2 signing keystore
         env:
           BINAA_V2_KEYSTORE_BASE64: ${{ secrets.BINAA_V2_KEYSTORE_BASE64 }}
+          BINAA_V2_KEYSTORE_PASSWORD: ${{ secrets.BINAA_V2_KEYSTORE_PASSWORD }}
         run: |
-          if [ -z "$BINAA_V2_KEYSTORE_BASE64" ]; then
-            echo "::error::GitHub Secret BINAA_V2_KEYSTORE_BASE64 is not set; refusing to build a release APK with a throwaway key (see README)."
-            exit 1
-          fi
+          for s in BINAA_V2_KEYSTORE_BASE64 BINAA_V2_KEYSTORE_PASSWORD; do
+            if [ -z "${!s}" ]; then
+              echo "::error::GitHub Secret $s is not set; refusing to build a release APK with a throwaway key (see README)."
+              exit 1
+            fi
+          done
           echo "$BINAA_V2_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/binaa-ocr-v2.jks"
           echo "BINAA_V2_KEYSTORE_PATH=$RUNNER_TEMP/binaa-ocr-v2.jks" >> "$GITHUB_ENV"
 
       - name: Unit tests + lint + debug & release APKs
         env:
           BINAA_V2_KEYSTORE_PASSWORD: ${{ secrets.BINAA_V2_KEYSTORE_PASSWORD }}
-          BINAA_V2_KEY_ALIAS: ${{ secrets.BINAA_V2_KEY_ALIAS }}
-          BINAA_V2_KEY_PASSWORD: ${{ secrets.BINAA_V2_KEY_PASSWORD }}
+          # الاسم المستعار ليس سرًّا. وفي مخزن PKCS12 كلمة سر المفتاح = كلمة سر المخزن.
+          BINAA_V2_KEY_ALIAS: binaa-ocr-v2
+          BINAA_V2_KEY_PASSWORD: ${{ secrets.BINAA_V2_KEYSTORE_PASSWORD }}
         run: ./gradlew :core:test testDebugUnitTest lintDebug assembleDebug assembleRelease --no-daemon --stacktrace
 
       - name: Remove signing keystore
