@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose يرسم كل الواجهة (edge-to-edge)؛ هذا الثيم للنافذة قبل أول إطار فقط. -->
+    <style name="Theme.BinaaOcr" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        لا يطلب Binaa OCR V2 أي صلاحية.
+        - لا INTERNET: كل المعالجة على الهاتف.
+        - لا READ_MEDIA_IMAGES ولا READ_EXTERNAL_STORAGE ولا منتقي صور: المدخل الوحيد لقطة شاشة
+          تُشارَك من WhatsApp، وتصل عبر URI بإذن قراءة مؤقت للصورة وحدها.
+        CI يرفض أي APK إصدار تظهر فيه صلاحية من هذه (حتى لو أضافتها مكتبة).
+    -->
+
+    <application
+        android:name=".BinaaApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.BinaaOcr">
+
+        <!-- الشاشة الرئيسية: متابعة وإرشاد فقط. لا تبدأ منها أي قراءة. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            المدخل الوحيد: مشاركة صورة من WhatsApp.
+            SEND_MULTIPLE مسجَّل فقط لنعرض رسالة «شارك صورة واحدة فقط في كل مرة» بدل أن يختفي التطبيق
+            من قائمة المشاركة؛ لا تُعالج أي صورة من مشاركة متعددة.
+            singleTask + taskAffinity خاص: نسخة واحدة فقط، فتصل المشاركة الجديدة إليها (onNewIntent).
+        -->
+        <activity
+            android:name=".intake.IntakeActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.binaa.ocr.intake"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>

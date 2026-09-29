@@ -1,0 +1,27 @@
+.gradle/
+build/
+/local.properties
+/.idea/
+*.iml
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+/.kotlin/
+ci-output/
+
+# مفاتيح التوقيع لا تدخل Git أبدًا (مكانها GitHub Secrets ونسخك الاحتياطية).
+*.jks
+*.keystore
+*.p12
+
+# الصور الحقيقية وGolden Corpus لا تدخل Git أبدًا (CI يرفض أي صورة نقطية متتبَّعة).
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.heic
+*.heif
+*.gif
+*.bmp
+corpus/

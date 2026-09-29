@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- الاسم تحت الأيقونة وفي قائمة المشاركة: مختلف بوضوح عن «Binaa Payment» القديم. -->
+    <string name="app_name">Binaa OCR V2</string>
+
+    <!-- الشاشة الرئيسية -->
+    <string name="home_title">Binaa OCR</string>
+    <string name="home_version_badge">V2</string>
+    <string name="home_empty">ستظهر هنا عملياتك بعد أول مشاركة.</string>
+
+    <!-- بطاقة الإرشاد: المدخل الوحيد هو المشاركة من WhatsApp -->
+    <string name="guide_title">كيف أقرأ إيصالًا؟</string>
+    <string name="guide_step_1">افتح صورة الإيصال في WhatsApp.</string>
+    <string name="guide_step_2">خذ لقطة للشاشة كاملة.</string>
+    <string name="guide_step_3">شارك اللقطة مع Binaa OCR V2.</string>
+    <string name="guide_note">تبدأ القراءة تلقائيًا بعد المشاركة، ولا حاجة لفتح التطبيق أولًا.</string>
+    <string name="guide_toggle_open">إظهار الخطوات</string>
+    <string name="guide_toggle_close">إخفاء الخطوات</string>
+
+    <!-- الاستلام -->
+    <string name="intake_close">إغلاق</string>
+    <string name="intake_cancel">إلغاء</string>
+    <string name="intake_receiving">نستلم اللقطة…</string>
+    <string name="intake_received_title">استُلمت اللقطة كاملة</string>
+    <string name="intake_image_size">%1$d × %2$d</string>
+    <string name="intake_phase1_note">قراءة الإيصال تُضاف في تحديث قادم. لم تُحفظ أي عملية.</string>
+    <string name="intake_preview_description">لقطة الشاشة المشاركة</string>
+
+    <string name="reject_multiple">شارك صورة واحدة فقط في كل مرة.</string>
+    <string name="reject_no_image">لم تصل أي صورة. شارك لقطة الشاشة من WhatsApp.</string>
+    <string name="reject_not_share">افتح صورة الإيصال في WhatsApp، خذ لقطة للشاشة، ثم شاركها مع Binaa OCR V2.</string>
+    <string name="reject_not_image">الملف المشارك ليس صورة.</string>
+    <string name="reject_too_large">الصورة أكبر من الحجم المسموح.</string>
+    <string name="reject_unreadable">تعذّرت قراءة الصورة المشاركة. حاول مشاركتها مرة أخرى.</string>
+
+    <string name="replace_title">لديك قراءة جارية</string>
+    <string name="replace_body">هل تريد استبدالها بالصورة الجديدة؟</string>
+    <string name="replace_confirm">استبدال</string>
+    <string name="replace_keep">متابعة الحالية</string>
+</resources>

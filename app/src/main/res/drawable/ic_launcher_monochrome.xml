@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- نفس الشكل بلون واحد (أيقونات Android 13+ الملوّنة بثيم النظام): السطران والعلامة ثقوب. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M37,31h34a3,3 0,0 1,3 3v39l-4,-3 -4,3 -4,-3 -4,3 -4,-3 -4,3 -4,-3 -4,3 -4,-3 -4,3v-39a3,3 0,0 1,3 -3zM42,40h24v3h-24zM42,47h16v3h-16zM46,59.5l3,-3 4,4 8,-8 3,3 -11,11z" />
+</vector>
