@@ -109,7 +109,8 @@ class IntakeInstrumentedTest {
         val asking = awaitState { it.pendingReplace != null }
         assertEquals("the current screenshot stays until the user decides", first, asking.image)
 
-        instrumentation.runOnMainSync { currentIntake()!!.viewModel.confirmReplace() }
+        val activity = currentIntake()!!
+        instrumentation.runOnMainSync { activity.viewModel.confirmReplace() }
         val replaced = awaitState { it.phase == IntakePhase.RECEIVED && it.image != null && it.image != first }
         assertArrayEquals(secondBytes, replaced.image!!.file.readBytes())
         assertFalse("the replaced screenshot is deleted", first.file.exists())
@@ -123,7 +124,8 @@ class IntakeInstrumentedTest {
         share(single(insert("second", "image/png", screenshotPng(1080, 2340, Color.BLACK))))
         awaitState { it.pendingReplace != null }
 
-        instrumentation.runOnMainSync { currentIntake()!!.viewModel.keepCurrent() }
+        val activity = currentIntake()!!
+        instrumentation.runOnMainSync { activity.viewModel.keepCurrent() }
         val kept = awaitState { it.pendingReplace == null }
         assertEquals(first, kept.image)
         assertEquals(listOf(first.file.name), intakeDir.list()!!.toList())
@@ -133,7 +135,8 @@ class IntakeInstrumentedTest {
     fun close_deletesTheReceivedScreenshot() {
         share(single(insert("screenshot", "image/png", screenshotPng(1080, 2340, Color.WHITE))))
         val image = awaitState { it.phase == IntakePhase.RECEIVED }.image!!
-        instrumentation.runOnMainSync { currentIntake()!!.viewModel.close() }
+        val activity = currentIntake()!!
+        instrumentation.runOnMainSync { activity.viewModel.close() }
         waitUntil("intake activity closed") { currentIntake() == null }
         assertFalse(image.file.exists())
     }
@@ -154,6 +157,7 @@ class IntakeInstrumentedTest {
         context.startActivity(intent)
     }
 
+    /** يستدعي runOnMainSync بنفسه: لا يُستدعى من داخل كتلة runOnMainSync (Android يمنع التداخل). */
     private fun currentIntake(): IntakeActivity? {
         var found: IntakeActivity? = null
         instrumentation.runOnMainSync {
