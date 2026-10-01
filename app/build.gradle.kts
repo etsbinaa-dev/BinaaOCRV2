@@ -4,6 +4,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// ML Kit Text Recognition بالنموذج المضمّن (لاتيني): يعمل بلا شبكة. الإصدار نفسه يُسجَّل في كل OcrDocument.
+val mlkitTextRecognitionVersion = "16.0.1"
+
 android {
     namespace = "com.binaa.ocr"
     compileSdk = 36
@@ -18,6 +21,8 @@ android {
         versionName = "2.0.0-alpha1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "MLKIT_TEXT_VERSION", "\"$mlkitTextRecognitionVersion\"")
     }
 
     // مفتاح V2 الدائم. الملف وكلمات السر خارج Git: يوفّرها GitHub Actions من GitHub Secrets.
@@ -59,6 +64,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -71,6 +77,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    implementation("com.google.mlkit:text-recognition:$mlkitTextRecognitionVersion")
 
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.compose.ui:ui")
