@@ -16,5 +16,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "BinaaOCRV2"
 
-// :core = منطق Kotlin خالص (يُختبر على JVM بلا Android). :golden-corpus = أدوات اختبار (debug فقط). :app = تطبيق Android.
-include(":core", ":golden-corpus", ":app")
+// :core = منطق Kotlin خالص (يُختبر على JVM بلا Android). :golden-corpus = أدوات اختبار (debug فقط). :app = تطبيق Android. :access-probe = تطبيق فحص للـCI فقط.
+include(":core", ":golden-corpus", ":app", ":access-probe")

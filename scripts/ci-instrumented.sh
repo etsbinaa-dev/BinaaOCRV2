@@ -5,29 +5,26 @@ mkdir -p ci-output
 adb logcat -c || true
 
 # ---- إثبات حماية CorpusActivity (android.permission.DUMP) قبل الاختبارات، على هذا الـAPI نفسه:
-# 1) تطبيق عادي لا يستطيع تشغيله، 2) adb shell يستطيع، 3) نسخة debug لا تطلب أي صلاحية Android.
+# 1) تطبيق عادي (access-probe: حزمة وuid مستقلان) لا يستطيع تشغيله، والضابط: يستطيع تشغيل MainActivity المُصدَّر،
+# 2) adb shell يستطيع تشغيله ويكتب التقرير، 3) نسخة debug لا تطلب أي صلاحية Android.
 APP=com.binaa.ocr.debug
-TEST_APP=$APP.test
 CORPUS=$APP/com.binaa.ocr.goldencorpus.CorpusActivity
 REPORTS=/sdcard/Android/data/$APP/files/corpus-reports
 probe_fail=0
 probe() { echo "$*" | tee -a ci-output/corpus-access-probe.txt; }
 
-./gradlew installDebug installDebugAndroidTest --no-daemon --stacktrace || probe_fail=1
+./gradlew installDebug --no-daemon --stacktrace || probe_fail=1
 
-# (1) هوية تطبيق عادي: run-as يعطي uid حزمة الاختبار (تطبيق debuggable عادي، بلا أي صلاحية خاصة).
-ordinary=$(adb shell run-as "$TEST_APP" am start -W -n "$CORPUS" 2>&1)
-probe "== ordinary app -> CorpusActivity:"; probe "$ordinary"
-# ضابط: نفس الطريقة على نشاط مُصدَّر عادي لا تُرفض بسبب صلاحية، فالرفض أعلاه سببه DUMP لا الطريقة.
-control=$(adb shell run-as "$TEST_APP" am start -W -n "$APP/com.binaa.ocr.MainActivity" 2>&1)
-probe "== ordinary app -> MainActivity (control):"; probe "$control"
+# (1) تطبيق عادي: اختبارات :access-probe تعمل داخل تطبيقه هو، تحت uid مستقل.
+adb logcat -c || true
+./gradlew :access-probe:connectedDebugAndroidTest --no-daemon --stacktrace
+access_status=$?
+probe "== access-probe (ordinary app, own uid) results:"
+probe "$(adb logcat -d -s AccessProbe:I | grep ACCESS_PROBE)"
+if [ "$access_status" -ne 0 ]; then
+  echo "::error::access-probe failed: an ordinary app was not refused, or the control could not start MainActivity"; probe_fail=1
+fi
 adb shell am force-stop "$APP" || true
-if ! grep -qE 'Permission Denial|SecurityException' <<<"$ordinary" || grep -q 'Status: ok' <<<"$ordinary"; then
-  echo "::error::An ordinary app was NOT refused when starting CorpusActivity"; probe_fail=1
-fi
-if grep -qE 'Permission Denial|SecurityException|run-as: ' <<<"$control"; then
-  echo "::error::Probe method invalid: the ordinary-app identity could not start even an unprotected activity"; probe_fail=1
-fi
 
 # (2) adb shell يستطيع تشغيله، والتشغيل يكتب التقرير.
 adb shell rm -rf "$REPORTS" || true

@@ -59,8 +59,9 @@ elif unzip -p "$DEBUG_APK" 'classes*.dex' | strings -n 5 > ci-output/debug-dex-s
 else
   echo "Golden Corpus classes found in the debug APK: the release corpus check is not blind."
 fi
-# Manifest الإصدار: لا CorpusActivity ولا حماية DUMP (مشغّل debug فقط)، مع تحكم إيجابي على Manifest نسخة debug.
-CORPUS_MANIFEST='goldencorpus|CorpusActivity|android\.permission\.DUMP'
+# Manifest الإصدار: لا CorpusActivity ولا أي مكوّن goldencorpus (مشغّل debug فقط)، مع تحكم إيجابي على Manifest نسخة debug.
+# (لا نبحث عن android.permission.DUMP عمومًا: مكوّنات AndroidX نفسها، مثل ProfileInstallReceiver، محمية بها.)
+CORPUS_MANIFEST='goldencorpus|CorpusActivity'
 "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > ci-output/release-manifest.txt
 if grep -nE "$CORPUS_MANIFEST" ci-output/release-manifest.txt; then
   echo "::error::Golden Corpus runner declared in the release manifest"; fail=1
@@ -72,6 +73,10 @@ if [ -f "$DEBUG_APK" ]; then
   else
     echo "::error::CorpusActivity not found in the debug manifest: the release manifest check would be blind"; fail=1
   fi
+fi
+# تطبيق الفحص access-probe (CI فقط) لا يدخل الإصدار بأي شكل.
+if grep -niE 'accessprobe|access-probe' ci-output/dex-strings.txt ci-output/release-manifest.txt ci-output/apk-files.txt; then
+  echo "::error::access-probe found in the release APK"; fail=1
 fi
 
 # ---- التوقيع بمفتاح V2 الدائم
