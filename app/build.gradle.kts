@@ -73,6 +73,9 @@ dependencies {
     // Golden Corpus: نسخة debug واختبارات الجهاز فقط. CI يتحقق أنه غير موجود في APK الإصدار.
     debugImplementation(project(":golden-corpus"))
     androidTestImplementation(project(":golden-corpus"))
+    // قياس HeaderDetector في مشغّل الـCorpus (debug فقط) قبل 5b.
+    debugImplementation(project(":header-engine"))
+    androidTestImplementation(project(":header-engine"))
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")

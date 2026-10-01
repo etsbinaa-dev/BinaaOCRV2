@@ -35,18 +35,21 @@ object CorpusRun {
         File(reportsDir, FULL_REPORT).delete()
 
         val load = CorpusLoader.load(casesDir)
+        // قياس الكاشف قبل 5b: هندسة ورموز فقط (لا نص)، لكل صورة حالة.
+        val geometry = mutableListOf<org.json.JSONObject>()
         val report = MlKitOcrAdapter().use { adapter ->
             CorpusRunner.run(load) { case ->
                 val bitmap = MlKitOcrAdapter.decodeFullImage(case.imageFile)
                 try {
+                    geometry += HeaderMeasurement.measure(case.caseId, bitmap)
                     CaseObservation(adapter.read(bitmap))
                 } finally {
                     bitmap.recycle()
                 }
             }
         }
-        writeAtomically(File(reportsDir, FULL_REPORT), report.toJson())
-        writeAtomically(File(reportsDir, MASKED_REPORT), Masking.mask(report).toJson())
+        writeAtomically(File(reportsDir, FULL_REPORT), HeaderMeasurement.appendTo(report.toJson(), geometry))
+        writeAtomically(File(reportsDir, MASKED_REPORT), HeaderMeasurement.appendTo(Masking.mask(report).toJson(), geometry))
 
         // سطر واحد للأعداد فقط (لا نصوص ولا قيم).
         with(report.totals) {
