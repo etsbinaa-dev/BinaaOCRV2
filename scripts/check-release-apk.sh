@@ -39,6 +39,27 @@ if grep -nE 'PickVisualMedia|android\.intent\.action\.(PICK|GET_CONTENT|OPEN_DOC
 fi
 if grep -niE 'corpus' ci-output/dex-strings.txt; then echo "::error::Golden Corpus code found in release APK"; fail=1; fi
 
+# ---- Golden Corpus: لا كود ولا صور ولا fixtures في الإصدار
+CORPUS_CLASSES='Lcom/binaa/ocr/goldencorpus/'
+if grep -n "$CORPUS_CLASSES" ci-output/dex-strings.txt; then echo "::error::Golden Corpus classes found in release APK"; fail=1; fi
+unzip -Z1 "$APK" > ci-output/apk-files.txt
+if grep -niE 'corpus|fixture|(^|/)expected\.json$' ci-output/apk-files.txt; then
+  echo "::error::Corpus or fixture files found in release APK"; fail=1
+fi
+# صور نقطية خارج res/ (أيقونات المكتبات داخل res/ مسموحة): أي صورة أخرى قد تكون لقطة اختبار.
+if grep -vE '^res/' ci-output/apk-files.txt | grep -iE '\.(png|jpe?g|webp|gif|bmp|heic|heif)$'; then
+  echo "::error::Raster image outside res/ found in release APK"; fail=1
+fi
+# تحكم إيجابي: نفس الفحص يجد الـCorpus في نسخة debug، فهو ليس فحصًا أعمى.
+DEBUG_APK=app/build/outputs/apk/debug/app-debug.apk
+if [ ! -f "$DEBUG_APK" ]; then
+  echo "::error::Debug APK not found ($DEBUG_APK): cannot prove the corpus check works"; fail=1
+elif unzip -p "$DEBUG_APK" 'classes*.dex' | strings -n 5 > ci-output/debug-dex-strings.txt && ! grep -q "$CORPUS_CLASSES" ci-output/debug-dex-strings.txt; then
+  echo "::error::Golden Corpus classes not found in the debug APK: the release corpus check would be blind"; fail=1
+else
+  echo "Golden Corpus classes found in the debug APK: the release corpus check is not blind."
+fi
+
 # ---- التوقيع بمفتاح V2 الدائم
 "$APKSIGNER" verify --verbose --print-certs "$APK" | tee ci-output/apk-signature.txt
 ACTUAL=$(grep -m1 'certificate SHA-256 digest' ci-output/apk-signature.txt | awk -F': ' '{print $NF}' | tr -d ' ' | tr 'A-F' 'a-f')

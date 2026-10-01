@@ -19,6 +19,7 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 |---|---|
 | `core/` | منطق Kotlin خالص، يُختبر على JVM بلا Android (سياسة الاستلام، صيغ الصور، الاحتفاظ). |
 | `app/` | تطبيق Android (Compose، عربي RTL أولًا). |
+| `golden-corpus/` | أدوات Golden Corpus (Kotlin خالص): قراءة الحالات، التشغيل، التقرير والتقرير المقنّع. في نسخة debug والاختبارات فقط، ولا تدخل الإصدار. |
 | `scripts/` | فحوص CI. |
 | `signing/v2-cert-sha256.txt` | بصمة شهادة مفتاح V2 (عامة، ليست سرًّا). |
 
@@ -55,6 +56,40 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 4. البصمة العامة: ناتج
    `keytool -list -v -keystore binaa-ocr-v2.jks -alias binaa-ocr-v2 | grep SHA256`
    يوضع في `signing/v2-cert-sha256.txt`. CI يرفض أي APK إصدار لا يطابقها.
+
+## Golden Corpus
+
+مجلد لكل حالة، على جهاز المطوّر فقط (لا يدخل Git: الصور ومجلدات `corpus/` مستبعدة، وCI يرفض أي صورة متتبَّعة):
+
+```
+case-001/
+  expected.json
+  image.png
+```
+
+`expected.json` (صيغة صارمة؛ حقل غير معروف أو قيمة بغير صيغتها ترفض الحالة):
+
+```json
+{
+  "schemaVersion": 1,
+  "caseId": "case-001",
+  "image": "image.png",
+  "source": "LOCAL_REAL",
+  "fields": {
+    "amount": {"status": "UNCERTAIN", "candidates": ["18300.00", "18329.30"]},
+    "counterparty": {"status": "NOT_FOUND"},
+    "date": {"status": "FOUND", "value": "2026-09-19"}
+  },
+  "ocrContains": ["MRU"],
+  "notes": "اختياري"
+}
+```
+
+- الحالات: `FOUND` بقيمة واحدة، `UNCERTAIN` بلا قيمة مع مرشّحين اختياريين، `NOT_FOUND` بلا قيمة.
+- الحقول: `counterparty`، `amount` (`18300.00`)، `date` (`YYYY-MM-DD`)، `time` (`HH:MM`)، `provider` (`MASRVI`/`BANKILY`/`SEDAD`/`BCIPAY`/`BIMBANK`/`OTHER`)، `reference`. الحقل غير المذكور لا يُقيَّم.
+- `caseId` بلا أسماء أو أرقام حقيقية (يبقى ظاهرًا في التقرير المقنّع).
+- التقرير يعدّ `wrongFound` (قيمة FOUND خاطئة، أو FOUND حيث الحقيقة UNCERTAIN/NOT_FOUND): يجب أن يبقى 0.
+- التقرير المقنّع يحتفظ بالمربعات والثقة والبنية وكلمات التسميات، ويستبدل الأرقام بـ9 والحروف اللاتينية بـa والعربية بـب. يُراجَع يدويًا قبل مشاركته.
 
 ## CI
 

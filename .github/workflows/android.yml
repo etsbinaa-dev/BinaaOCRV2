@@ -43,7 +43,7 @@ jobs:
           # الاسم المستعار ليس سرًّا. وفي مخزن PKCS12 كلمة سر المفتاح = كلمة سر المخزن.
           BINAA_V2_KEY_ALIAS: binaa-ocr-v2
           BINAA_V2_KEY_PASSWORD: ${{ secrets.BINAA_V2_KEYSTORE_PASSWORD }}
-        run: ./gradlew :core:test testDebugUnitTest lintDebug assembleDebug assembleRelease --no-daemon --stacktrace
+        run: ./gradlew :core:test :golden-corpus:test testDebugUnitTest lintDebug assembleDebug assembleRelease --no-daemon --stacktrace
 
       - name: Remove signing keystore
         if: always()
