@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    نسخة debug فقط (com.binaa.ocr.debug): مشغّل Golden Corpus. لا يدخل نسخة الإصدار (CI يتحقق من ذلك).
+    exported لكن محمي بـ android.permission.DUMP: يملكها adb shell والنظام فقط، ولا يستطيع أي تطبيق عادي
+    الحصول عليها، فلا يشغّله غير adb. CI يثبت ذلك على API 35 و36. لا يضيف أي صلاحية للتطبيق.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name="com.binaa.ocr.goldencorpus.CorpusActivity"
+            android:exported="true"
+            android:permission="android.permission.DUMP"
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.binaa.ocr.debug.goldencorpus" />
+    </application>
+</manifest>

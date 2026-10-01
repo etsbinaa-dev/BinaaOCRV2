@@ -91,6 +91,23 @@ case-001/
 - التقرير يعدّ `wrongFound` (قيمة FOUND خاطئة، أو FOUND حيث الحقيقة UNCERTAIN/NOT_FOUND): يجب أن يبقى 0.
 - التقرير المقنّع يحتفظ بالمربعات والثقة والبنية وكلمات التسميات، ويستبدل الأرقام بـ9 والحروف اللاتينية بـa والعربية بـب. يُراجَع يدويًا قبل مشاركته.
 
+### تشغيل Golden Corpus على الهاتف (نسخة debug فقط)
+
+1. ثبّت نسخة debug من artifact `binaa-ocr-v2-debug-apk` في CI (`com.binaa.ocr.debug`، تُثبَّت بجانب نسخة الإصدار).
+2. ضع الحالات في مجلد على حاسوبك (مجلد لكل حالة كما أعلاه)، ثم:
+   ```
+   scripts/corpus-device.sh push ~/binaa-corpus
+   scripts/corpus-device.sh run
+   scripts/corpus-device.sh pull-masked     # corpus-reports-local/report-masked.json: راجعه قبل مشاركته
+   ```
+   `pull-full` ينسخ التقرير الكامل (فيه نصوص الإيصالات): يبقى على حاسوبك. `clear` يحذف كل شيء من الهاتف.
+- مكان الحالات على الهاتف: `/sdcard/Android/data/com.binaa.ocr.debug/files/corpus/` (مجلد نسخة debug الخاص:
+  بلا أي صلاحية، لا يقرؤه تطبيق آخر، خارج النسخ السحابي والنقل بين الهواتف، ويُحذف مع حذف نسخة debug).
+- `CorpusActivity` محمي بـ `android.permission.DUMP`: يشغّله adb shell فقط، لا أي تطبيق على الهاتف (يُثبَت في CI على API 35 و36).
+- **مهم:** CI يوقّع نسخة debug بمفتاح debug يتغير مع كل تشغيل. تثبيت نسخة debug أحدث قد يتطلب أولًا
+  `adb uninstall com.binaa.ocr.debug`، وهذا **يحذف الحالات والتقارير الموجودة على الهاتف**. الحالات الأصلية تبقى
+  على حاسوبك: أعد `push` بعد التثبيت. نسخة الإصدار `com.binaa.ocr` لا تتأثر.
+
 ## CI
 
 - **Build**: نظافة المستودع، اختبارات `core` وunit، lint، APK debug وrelease (R8)، ثم فحوص APK الإصدار، ثم رفعه كـartifact `binaa-ocr-v2-release-apk`.

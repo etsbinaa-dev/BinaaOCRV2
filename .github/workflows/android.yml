@@ -60,6 +60,16 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
+      # نسخة debug (com.binaa.ocr.debug) لتشغيل Golden Corpus على الهاتف بـ adb فقط. موقّعة بمفتاح debug مؤقت
+      # يتغير مع كل تشغيل CI: تثبيتها فوق نسخة debug أقدم قد يتطلب حذف القديمة أولًا (انظر README).
+      - name: Upload debug APK (Golden Corpus runner)
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaa-ocr-v2-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4

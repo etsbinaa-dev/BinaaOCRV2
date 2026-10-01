@@ -25,3 +25,8 @@ ci-output/
 *.gif
 *.bmp
 corpus/
+
+# تقارير Golden Corpus المسحوبة من الهاتف (التقرير الكامل فيه نصوص إيصالات حقيقية).
+corpus-reports-local/
+report.json
+report-masked.json
