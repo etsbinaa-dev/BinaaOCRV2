@@ -180,8 +180,9 @@ private fun HeaderSection(header: HeaderUi) {
             }
             is HeaderUi.Done -> {
                 val result = header.result
-                if (result.status == NameStatus.FOUND && result.name != null) {
-                    Text(result.name, style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.testTag("intake-header-name"))
+                val name = result.name
+                if (result.status == NameStatus.FOUND && name != null) {
+                    Text(name, style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.testTag("intake-header-name"))
                 } else {
                     Text(stringResource(R.string.header_not_found), style = MaterialTheme.typography.titleMedium, color = colors.text)
                     val hint = when (result.reason) {
