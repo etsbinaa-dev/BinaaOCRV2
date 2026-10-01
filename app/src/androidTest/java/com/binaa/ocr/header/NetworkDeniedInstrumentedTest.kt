@@ -39,8 +39,10 @@ class NetworkDeniedInstrumentedTest {
             Socket().use { it.connect(InetSocketAddress("127.0.0.1", 9), 1000) }
             fail("a socket was opened: the app process has network access")
         } catch (e: IOException) {
-            // EACCES = لا صلاحية شبكة (وليس «رفض الاتصال» الذي يعني أن الشبكة متاحة).
-            assertTrue("${e.message}", e.message.orEmpty().contains("EACCES") || e.message.orEmpty().contains("Permission denied"))
+            // إنشاء الـsocket نفسه مرفوض: EACCES (Android أقدم) أو EPERM (API 35/36). وليس «رفض الاتصال» (ECONNREFUSED)
+            // الذي يعني أن الشبكة متاحة للعملية.
+            val m = e.message.orEmpty()
+            assertTrue(m, m.startsWith("socket failed") && (m.contains("EACCES") || m.contains("EPERM")))
         } catch (e: SecurityException) {
             // رفض صريح من النظام: نفس النتيجة.
         }

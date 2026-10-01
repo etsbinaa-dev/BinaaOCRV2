@@ -95,8 +95,6 @@ abstract class VerifyPinnedArtifact : DefaultTask() {
         file.inputStream().use { input -> val buf = ByteArray(1 shl 16); while (true) { val n = input.read(buf); if (n < 0) break; md.update(buf, 0, n) } }
         val actual = md.digest().joinToString("") { "%02x".format(it) }
         logger.lifecycle("${file.name}: sha256 $actual (${file.length()} bytes)")
-        // مؤقت (حتى يُثبَّت الـSHA من أول تنزيل): لا يُفشل البناء، لكن check-release-apk.sh يرفض أي APK بلا تثبيت.
-        if (expectedSha256.get() == "UNPINNED") { logger.warn("TESSERACT_AAR_UNPINNED sha256=$actual"); stamp.get().asFile.writeText(actual); return }
         if (actual != expectedSha256.get()) throw GradleException("${file.name} sha256 $actual does not match the pinned ${expectedSha256.get()}")
         stamp.get().asFile.writeText(actual)
     }
