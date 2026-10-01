@@ -11,6 +11,12 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Tesseract4Android فقط (غير منشور على Maven Central؛ نفس مصدر Binaa Payment OCR). وقت البناء فقط، لا شبكة على الهاتف.
+        // exclusiveContent: هذه المجموعة من JitPack وحده، ولا شيء غيرها من JitPack. والـAAR مثبّت بـSHA-256 (app/build.gradle.kts).
+        exclusiveContent {
+            forRepository { maven("https://jitpack.io") }
+            filter { includeGroup("cz.adaptech.tesseract4android") }
+        }
     }
 }
 

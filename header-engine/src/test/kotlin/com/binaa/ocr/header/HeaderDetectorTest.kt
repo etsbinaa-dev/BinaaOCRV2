@@ -156,6 +156,56 @@ class HeaderDetectorTest {
         }
     }
 
+    // ------------------------------------------------------------------ رؤوس متعددة (F-5)
+
+    /** رأس مضغوط كامل (سهم + أيقونتان + اسم في صفّها) أعلاه [top]. */
+    private fun Canvas.compactHeader(top: Int, fg: Int = white) {
+        rect(49, top + 2, 96, top + 47, fg)
+        rect(718, top + 2, 770, top + 47, fg)
+        rect(858, top + 4, 902, top + 44, fg)
+        var x = 148; while (x < 450) { rect(x, top, minOf(x + 30, 450), top + 42, fg); x += 40 }
+    }
+
+    @Test
+    fun twoRealHeaders_areAmbiguous_soNoHeaderIsDetected() {
+        // لقطة فيها رأسان حقيقيان في صفّين: لا اختيار تلقائي ⇒ HEADER_NOT_DETECTED.
+        val c = canvas().apply { compactHeader(8); compactHeader(118) }
+        // كل رأس وحده يُقبل (فالرفض سببه الالتباس فقط).
+        assertNull(HeaderDetector.detect(canvas().apply { compactHeader(8) }.image()).rejection)
+        assertNull(HeaderDetector.detect(canvas().apply { compactHeader(118) }.image()).rejection)
+        val d = HeaderDetector.detect(c.image())
+        assertEquals(DetectorRejection.MULTIPLE_HEADER_CANDIDATES, d.rejection)
+        assertNull(d.layout)
+        assertNull(d.nameImage)
+        assertEquals(NameReason.HEADER_NOT_DETECTED, HeaderResult.of(d, null).reason)
+    }
+
+    @Test
+    fun extraIconGroup_withoutArrowOrName_isNotAnotherHeader() {
+        // مجموعة أيقونات عشوائية تحت الرأس (لا سهم ولا اسم في صفّها): لا تكفي للرفض، والهندسة لم تتغير.
+        val d = HeaderDetector.detect(canvas().apply {
+            viewer()
+            rect(718, 142, 760, 176, white); rect(858, 142, 900, 176, white)
+        }.image())
+        assertNull(d.rejection)
+        assertEquals(Box(148, 31, 450, 80), d.layout!!.name)
+        assertEquals(listOf(Box(718, 62, 770, 111), Box(858, 64, 902, 105)), d.layout!!.icons)
+        assertNotNull(d.nameImage)
+    }
+
+    @Test
+    fun extraIconGroupWithText_butNoArrow_isNotAnotherHeader() {
+        // صف ثانٍ فيه أيقونتان ونص لكن بلا سهم رجوع: ليس رأس Image Viewer ⇒ الرأس الأول يبقى مقبولًا.
+        val d = HeaderDetector.detect(canvas().apply {
+            compactHeader(8)
+            rect(718, 120, 770, 165, white); rect(858, 122, 902, 162, white)
+            var x = 148; while (x < 450) { rect(x, 118, minOf(x + 30, 450), 160, white); x += 40 }
+        }.image())
+        assertNull(d.rejection)
+        assertEquals(Box(148, 8, 450, 50), d.layout!!.name)
+        assertNotNull(d.nameImage)
+    }
+
     // ------------------------------------------------------------------ الاتجاه، الثيم، الدقة
 
     @Test

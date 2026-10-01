@@ -31,6 +31,10 @@ data class HeaderResult(
         }
     }
 
+    /** لا اسم في السجلات أبدًا. */
+    override fun toString() =
+        "HeaderResult($status, name=${if (name == null) "null" else "<${name.length} chars>"}, reason=$reason, rejection=$detectorRejection, decision=$decision)"
+
     companion object {
         /**
          * يجمع الكاشف والقرار. [decision] = null إذا لم يُشغَّل OCR (لا مربع اسم).

@@ -1,10 +1,14 @@
 package com.binaa.ocr.header
 
 /** كلمة من Tesseract: الموضع الأفقي في الصورة المجهّزة ([NamePrep]). */
-data class TessWord(val text: String, val conf: Int, val left: Int, val right: Int)
+data class TessWord(val text: String, val conf: Int, val left: Int, val right: Int) {
+    override fun toString() = "TessWord(chars=${text.length}, conf=$conf, x=$left..$right)"
+}
 
 /** كلمة من ML Kit على مربع الاسم النظيف، محوّلة إلى إحداثيات الصورة المجهّزة نفسها. */
-data class MlWord(val text: String, val left: Int, val right: Int)
+data class MlWord(val text: String, val left: Int, val right: Int) {
+    override fun toString() = "MlWord(chars=${text.length}, x=$left..$right)"
+}
 
 /** النتيجة النهائية للقرار (رمز ثابت، لا نص حر). */
 enum class DecisionCode {
@@ -50,7 +54,10 @@ data class NameDecision(
     val code: DecisionCode,
     val dropped: List<DroppedWord> = emptyList(),
     val notes: Set<DecisionNote> = emptySet(),
-)
+) {
+    /** لا اسم في السجلات أبدًا. */
+    override fun toString() = "NameDecision(name=${if (name == null) "null" else "<${name.length} chars>"}, code=$code, dropped=$dropped, notes=$notes)"
+}
 
 /**
  * قرار اسم الـHeader، منقول من HeaderDecider في Binaa Payment OCR (مسار الهاتف: Tesseract + ML Kit) بنفس القواعد:

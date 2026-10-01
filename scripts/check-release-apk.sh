@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # فحوص الـAPK النهائي للإصدار (ما سيُثبَّت على الهاتف فعلًا):
-# المعرّف والاسم والأيقونة، الصلاحيات الممنوعة، غياب منتقي الصور وأدوات Corpus، والتوقيع بمفتاح V2 الدائم.
+# المعرّف والاسم والأيقونة، الصلاحيات الممنوعة، غياب منتقي الصور وأدوات Corpus وقياس الكاشف، نماذج Tesseract المثبّتة، والتوقيع بمفتاح V2 الدائم.
 set -euo pipefail
 APK=app/build/outputs/apk/release/app-release.apk
 BT=$(find "$ANDROID_HOME/build-tools" -maxdepth 1 -mindepth 1 -type d | sort -V | tail -1)
@@ -78,6 +78,40 @@ fi
 if grep -niE 'accessprobe|access-probe' ci-output/dex-strings.txt ci-output/release-manifest.txt ci-output/apk-files.txt; then
   echo "::error::access-probe found in the release APK"; fail=1
 fi
+
+# قياس الكاشف (HeaderMeasurement / headerGeometry) أداة debug فقط، مع تحكم إيجابي على نسخة debug.
+if grep -nE 'HeaderMeasurement|headerGeometry' ci-output/dex-strings.txt; then
+  echo "::error::Header measurement (debug corpus tool) found in the release APK"; fail=1
+fi
+if [ -f ci-output/debug-dex-strings.txt ] && grep -q 'HeaderMeasurement' ci-output/debug-dex-strings.txt; then
+  echo "HeaderMeasurement found in the debug APK only: the release check is not blind."
+else
+  echo "::error::HeaderMeasurement not found in the debug APK: the release check would be blind"; fail=1
+fi
+
+# ---- نماذج Tesseract: نفس الملفين المثبّتين في tessdata/tessdata.lock (حجمًا وSHA-256)، ولا نموذج آخر
+grep -vE '^\s*(#|$)' tessdata/tessdata.lock | while read -r lang repo commit sha bytes; do
+  echo "$lang $repo $commit $sha $bytes"
+done > ci-output/tessdata-pinned.txt
+grep -E '^assets/tessdata/' ci-output/apk-files.txt | sort > ci-output/apk-tessdata-files.txt
+awk '{print "assets/tessdata/" $1 ".traineddata"}' ci-output/tessdata-pinned.txt | sort > ci-output/tessdata-expected-files.txt
+if ! diff -u ci-output/tessdata-expected-files.txt ci-output/apk-tessdata-files.txt; then
+  echo "::error::Release APK tessdata files differ from tessdata.lock"; fail=1
+fi
+while read -r lang repo commit sha bytes; do
+  actual=$(unzip -p "$APK" "assets/tessdata/$lang.traineddata" | sha256sum | awk '{print $1}')
+  size=$(unzip -p "$APK" "assets/tessdata/$lang.traineddata" | wc -c)
+  echo "tessdata $lang ($repo@$commit): sha256 $actual, $size bytes" | tee -a ci-output/apk-tessdata.txt
+  if [ "$actual" != "$sha" ] || [ "$size" -ne "$bytes" ]; then
+    echo "::error::Release APK $lang.traineddata does not match tessdata.lock (expected $sha, $bytes bytes)"; fail=1
+  fi
+done < ci-output/tessdata-pinned.txt
+
+grep -qE '^[0-9a-f]{64}$' gradle/tesseract4android.sha256 || { echo "::error::tesseract4android AAR SHA-256 is not pinned"; fail=1; }
+
+# ---- الأحجام (للمقارنة بين النسخ)
+{ echo "release apk bytes: $(stat -c %s "$APK")"; [ -f "$DEBUG_APK" ] && echo "debug apk bytes: $(stat -c %s "$DEBUG_APK")"; } | tee ci-output/apk-sizes.txt
+grep -E '^lib/' ci-output/apk-files.txt | cut -d/ -f2 | sort -u | tr '\n' ' ' | sed 's/^/release ABIs: /' | tee -a ci-output/apk-sizes.txt; echo
 
 # ---- التوقيع بمفتاح V2 الدائم
 "$APKSIGNER" verify --verbose --print-certs "$APK" | tee ci-output/apk-signature.txt

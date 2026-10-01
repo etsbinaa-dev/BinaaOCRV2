@@ -41,6 +41,12 @@ enum class DetectorRejection {
 
     /** ارتفاع سطر الاسم خارج المدى بالنسبة للأيقونات. */
     NAME_HEIGHT_OUT_OF_RANGE,
+
+    /**
+     * أكثر من رأس حقيقي في اللقطة (مثلًا لقطة داخل لقطة): لا يُختار أحدها تلقائيًا ⇒ HEADER_NOT_DETECTED.
+     * رأس «حقيقي» = مجموعة أيقونات + سهم رجوع في صفّها + مربع اسم مقبول؛ مجموعة أيقونات وحدها لا تكفي.
+     */
+    MULTIPLE_HEADER_CANDIDATES,
 }
 
 /**
@@ -82,6 +88,8 @@ class Detection(val layout: HeaderLayout?, val rejection: DetectorRejection?, va
  * 2) LTR فقط، كما في الكاشف المثبت (الأيقونات يمينًا). رأس RTL ⇒ لا مجموعة أيقونات ⇒ HEADER_NOT_DETECTED (آمن).
  *    البحث المعكوس جُرّب ورُفض: حروف اسم لاتيني متباعدة تبدو «أيقونات» في الصورة المعكوسة فيخترع رأسًا.
  * 3) قاعدة إضافية (رفض فقط): أول سطر نص يجب أن يتقاطع عموديًا مع صف الأيقونات، فلا يصير الـsubtitle اسمًا.
+ * 4) قاعدة إضافية (رفض فقط): إذا قُبل الرأس المختار ووُجد في صف آخر رأس حقيقي ثانٍ ⇒ MULTIPLE_HEADER_CANDIDATES.
+ *    اختيار الرأس الأول وفحصه لم يتغيرا؛ الرأس الثاني يُفحص بالقواعد نفسها ابتداءً من صفّه هو.
  */
 object HeaderDetector {
 
@@ -137,14 +145,40 @@ object HeaderDetector {
             .filter { (r, n) -> r.w.toDouble() in iconSize && r.h.toDouble() in iconSize && n > 60 * s * s && r.w.toDouble() / r.h in 0.6..1.7 }
             .map { it.first }
         var icons = emptyList<Box>()
+        val groups = mutableListOf<List<Box>>()
         for (a in right) {
             val row = right.filter { abs(it.cy - a.cy) <= scaled(12) && abs(it.h - a.h) <= scaled(20) }.sortedByDescending { it.r }
             val picked = mutableListOf<Box>()
             for (c in row) if (picked.isEmpty() || picked.last().l - c.r >= max(c.w, picked.last().w)) picked += c
             val grp = picked.sortedBy { it.l }
+            if (grp.size >= 2) groups += grp
             if (grp.size >= 2 && (icons.isEmpty() || grp.last().r > icons.last().r || (grp.last().r == icons.last().r && grp.size > icons.size))) icons = grp
         }
         if (icons.size < 2) return Detection(null, DetectorRejection.NO_ICON_GROUP, null)
+        val primary = evaluate(px, W, B, icons, 0)
+        if (primary.rejection != null) return primary
+        // رأس ثانٍ حقيقي في صف لا يتقاطع مع صف الرأس المختار ⇒ التباس، لا اختيار.
+        val cluster = primary.layout!!.iconCluster
+        val second = groups.filter { g -> g.maxOf { it.b } <= cluster.t || g.minOf { it.t } >= cluster.b }
+            .distinctBy { g -> g.map { it.l to it.t } }
+            .any { g ->
+                val iconH = median(g.map { it.h })
+                val d = evaluate(px, W, B, g, max(0, g.minOf { it.t } - iconH))
+                d.rejection == null && d.layout?.arrow != null
+            }
+        return if (second) Detection(null, DetectorRejection.MULTIPLE_HEADER_CANDIDATES, null) else primary
+    }
+
+    /**
+     * الخطوات 3–7 للرأس الذي أيقوناته [icons]. [yStart] = أول صف يُبحث فيه عن سطر الاسم
+     * (0 للرأس المختار كما في الكاشف المثبت؛ صف الرأس الثاني عند فحص الالتباس).
+     */
+    private fun evaluate(px: Array<IntArray>, W: Int, B: IntArray, icons: List<Box>, yStart: Int): Detection {
+        val zoneH = px.size
+        val s = W / REFERENCE_WIDTH
+        fun scaled(v: Int) = v * s
+        fun scaledPx(v: Int) = max(1, (v * s).roundToInt())
+        fun dist(p: Int): Double { val q = rgb(p); return sqrt(((q[0]-B[0])*(q[0]-B[0]) + (q[1]-B[1])*(q[1]-B[1]) + (q[2]-B[2])*(q[2]-B[2])).toDouble()) }
         val iconH = median(icons.map { it.h })
         val cluster = Box(icons.minOf { it.l }, icons.minOf { it.t }, icons.maxOf { it.r }, icons.maxOf { it.b })
 
@@ -190,7 +224,7 @@ object HeaderDetector {
         val yEnd = min(zoneH, firstIcon.b + iconH * 2)
         val rowInk = IntArray(yEnd) { y -> (xStart until xEnd).count { mask[y][it] } }
         val bands = mutableListOf<IntArray>()
-        var y = 0
+        var y = yStart
         while (y < yEnd) {
             if (rowInk[y] == 0) { y++; continue }
             var e = y; var gap = 0; var k = y

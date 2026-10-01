@@ -20,6 +20,8 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 | `core/` | منطق Kotlin خالص، يُختبر على JVM بلا Android (سياسة الاستلام، صيغ الصور، الاحتفاظ). |
 | `app/` | تطبيق Android (Compose، عربي RTL أولًا). |
 | `golden-corpus/` | أدوات Golden Corpus (Kotlin خالص): قراءة الحالات، التشغيل، التقرير والتقرير المقنّع. في نسخة debug والاختبارات فقط، ولا تدخل الإصدار. |
+| `header-engine/` | اسم رأس WhatsApp Image Viewer (Kotlin خالص): الكاشف الهندسي، تجهيز صورة الاسم، قرار الاسم، والمسار كاملًا بمحرّكين مجرّدين. |
+| `tessdata/tessdata.lock` | نماذج Tesseract المثبّتة (commit + SHA-256). الملفات نفسها لا تدخل Git. |
 | `scripts/` | فحوص CI. |
 | `signing/v2-cert-sha256.txt` | بصمة شهادة مفتاح V2 (عامة، ليست سرًّا). |
 
@@ -36,6 +38,22 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 - `FLAG_SECURE` على كل الشاشات.
 - النسخ السحابي ممنوع؛ النقل المباشر بين هاتفين مسموح (Android 12+) عدا صور الاستلام المؤقتة.
 - الصور الحقيقية وGolden Corpus لا تدخل Git أبدًا (CI يرفض أي صورة نقطية متتبَّعة). أدوات Corpus لنسخة debug فقط.
+
+## Header Engine (اسم الطرف الآخر من رأس WhatsApp)
+
+لقطة الشاشة كاملة ← `HeaderDetector` ← مربع الاسم النظيف ← `NamePrep` (ارتفاع 40 + إطار 20) ← Tesseract ← ML Kit على مربع
+الاسم النظيف نفسه (دقته الأصلية + إطار أبيض 20، والإحداثيات `x' = ((x − 20) · 40 / h + 20)`) ← `NameDecider` ← `HeaderResult`.
+
+- لا رأس، أو أكثر من رأس حقيقي (`MULTIPLE_HEADER_CANDIDATES`) ⇒ `HEADER_NOT_DETECTED` بلا أي OCR. نص الإيصال لا يُقرأ هنا أبدًا.
+- فشل Tesseract (غير متاح أو استثناء) ⇒ `NAME_UNREADABLE` ولا يُشغَّل ML Kit. فشل ML Kit ⇒ `NAME_UNREADABLE`. لا استثناء يخرج.
+- Tesseract (tesseract4android 4.9.0): `OEM_LSTM_ONLY`، `PSM_SINGLE_LINE`، `ara+eng`، كلمات `RIL_WORD`. كائن واحد خلف قفل.
+- النماذج: `ara` من `tessdata_best` و`eng` من `tessdata_fast` (نفس ملفي Binaa Payment OCR)، بالـcommit والـSHA-256 في
+  `tessdata/tessdata.lock`. تُنزَّل وقت البناء (`fetchTessdata`) ويُتحقق منها قبل التغليف، ثم في APK الإصدار، ثم على الهاتف
+  قبل كل تهيئة (تُنسخ إلى `noBackupFilesDir`). لا تنزيل على الهاتف ولا صلاحية شبكة.
+- AAR الـTesseract من JitPack (غير منشور على Maven Central)، لمجموعته فقط (`exclusiveContent`)، ومثبّت بـSHA-256 في
+  `gradle/tesseract4android.sha256` (`verifyTesseractAar` قبل كل بناء).
+- لا سجلات للصورة ولا للنص؛ `toString()` لكل الأدلة والنتائج لا يُظهر النص.
+- غير موصول بأي واجهة إنتاج بعد (`HeaderEngine`).
 
 ## مفتاح التوقيع V2 (مرة واحدة فقط)
 
@@ -113,7 +131,7 @@ case-001/
 
 ## CI
 
-- **Build**: نظافة المستودع، اختبارات `core` وunit، lint، APK debug وrelease (R8)، ثم فحوص APK الإصدار، ثم رفعه كـartifact `binaa-ocr-v2-release-apk`.
+- **Build**: نظافة المستودع، اختبارات `core` وunit، lint، APK debug وrelease (R8)، ثم فحوص APK الإصدار (منها SHA-256 نموذجي Tesseract)، ثم رفعه كـartifact `binaa-ocr-v2-release-apk`.
 - **Instrumented**: اختبارات الجهاز على محاكي API 35 و36 (نسخة debug).
 
 ## المراحل
