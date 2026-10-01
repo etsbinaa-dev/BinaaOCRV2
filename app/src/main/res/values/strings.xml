@@ -23,8 +23,16 @@
     <string name="intake_receiving">نستلم اللقطة…</string>
     <string name="intake_received_title">استُلمت اللقطة كاملة</string>
     <string name="intake_image_size">%1$d × %2$d</string>
-    <string name="intake_phase1_note">قراءة الإيصال تُضاف في تحديث قادم. لم تُحفظ أي عملية.</string>
+    <string name="intake_phase1_note">قراءة الإيصال والحفظ يُضافان في تحديث قادم. لم تُحفظ أي عملية.</string>
     <string name="intake_preview_description">لقطة الشاشة المشاركة</string>
+    <string name="intake_done">تم</string>
+
+    <!-- اسم الطرف الآخر من رأس WhatsApp -->
+    <string name="header_label">الطرف الآخر</string>
+    <string name="header_reading">نقرأ الاسم من أعلى اللقطة…</string>
+    <string name="header_not_found">لم يُحدَّد الاسم</string>
+    <string name="header_reason_not_detected">للحصول على الاسم تلقائيًا، خذ لقطة للشاشة كاملة وصورة الإيصال مفتوحة في WhatsApp.</string>
+    <string name="header_reason_unreadable">لم نتمكن من قراءة الاسم.</string>
 
     <string name="reject_multiple">شارك صورة واحدة فقط في كل مرة.</string>
     <string name="reject_no_image">لم تصل أي صورة. شارك لقطة الشاشة من WhatsApp.</string>

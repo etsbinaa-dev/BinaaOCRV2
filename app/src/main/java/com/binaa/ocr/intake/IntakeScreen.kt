@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import com.binaa.ocr.R
 import com.binaa.ocr.core.intake.IntakePhase
 import com.binaa.ocr.core.intake.IntakeRejection
+import com.binaa.ocr.header.NameReason
+import com.binaa.ocr.header.NameStatus
 import com.binaa.ocr.ui.theme.Binaa
 
 @Composable
@@ -70,7 +72,11 @@ fun IntakeScreen(
         }
 
         // الإجراء الوحيد في أسفل الشاشة (منطقة الإبهام).
-        val label = if (state.phase == IntakePhase.RECEIVING) R.string.intake_cancel else R.string.intake_close
+        val label = when {
+            state.phase == IntakePhase.RECEIVING || state.header == HeaderUi.Reading -> R.string.intake_cancel
+            state.header is HeaderUi.Done -> R.string.intake_done
+            else -> R.string.intake_close
+        }
         OutlinedButton(
             onClick = onClose,
             modifier = Modifier.fillMaxWidth().height(56.dp).testTag("intake-bottom-action"),
@@ -141,6 +147,8 @@ private fun Received(state: IntakeUiState) {
             color = colors.textMuted,
         )
         Spacer(Modifier.height(12.dp))
+        state.header?.let { HeaderSection(it) }
+        Spacer(Modifier.height(8.dp))
         Text(
             stringResource(R.string.intake_phase1_note),
             style = MaterialTheme.typography.bodyMedium,
@@ -149,6 +157,41 @@ private fun Received(state: IntakeUiState) {
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(12.dp))
+    }
+}
+
+/** اسم الطرف الآخر: جارٍ، أو الاسم (FOUND)، أو السبب (NOT_FOUND). الاسم اختياري ولا يُخمَّن. */
+@Composable
+private fun HeaderSection(header: HeaderUi) {
+    val colors = Binaa.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .border(1.dp, if (header is HeaderUi.Done && header.result.status == NameStatus.FOUND) colors.found else colors.notFoundBorder, MaterialTheme.shapes.medium)
+            .padding(12.dp)
+            .testTag("intake-header"),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(stringResource(R.string.header_label), style = MaterialTheme.typography.labelLarge, color = colors.textMuted)
+        when (header) {
+            HeaderUi.Reading -> {
+                Text(stringResource(R.string.header_reading), style = MaterialTheme.typography.bodyMedium, color = colors.text)
+                LinearProgressIndicator(Modifier.fillMaxWidth().clip(CircleShape), color = colors.brand, trackColor = colors.divider)
+            }
+            is HeaderUi.Done -> {
+                val result = header.result
+                if (result.status == NameStatus.FOUND && result.name != null) {
+                    Text(result.name, style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.testTag("intake-header-name"))
+                } else {
+                    Text(stringResource(R.string.header_not_found), style = MaterialTheme.typography.titleMedium, color = colors.text)
+                    val hint = when (result.reason) {
+                        NameReason.NAME_UNREADABLE -> R.string.header_reason_unreadable
+                        NameReason.HEADER_NOT_DETECTED, null -> R.string.header_reason_not_detected
+                    }
+                    Text(stringResource(hint), style = MaterialTheme.typography.bodyMedium, color = colors.textMuted, modifier = Modifier.testTag("intake-header-reason"))
+                }
+            }
+        }
     }
 }
 
