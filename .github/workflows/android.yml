@@ -2,6 +2,8 @@ name: Android build & tests
 
 on:
   push:
+    # فرع التشخيص المؤقت diag/v2-keystore لا يشغّل Build ولا اختبارات الأجهزة.
+    branches-ignore: ['diag/**']
   workflow_dispatch:
 
 jobs:
