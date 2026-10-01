@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
         لا يطلب Binaa OCR V2 أي صلاحية.
@@ -8,6 +9,14 @@
           تُشارَك من WhatsApp، وتصل عبر URI بإذن قراءة مؤقت للصورة وحدها.
         CI يرفض أي APK إصدار تظهر فيه صلاحية من هذه (حتى لو أضافتها مكتبة).
     -->
+
+    <!--
+        ML Kit (عبر مكوّن telemetry من Google: datatransport) يضيف هاتين الصلاحيتين عند دمج الـManifest،
+        وقد ثبت ذلك في CI على APK الإصدار. نحذفهما: النموذج مضمّن في التطبيق ويعمل بلا شبكة،
+        وبدونهما لا يستطيع ذلك المكوّن إرسال أي شيء.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <application
         android:name=".BinaaApp"
