@@ -11,12 +11,16 @@ fail=0
 
 # ---- المعرّف والإصدار والاسم والأيقونة
 "$AAPT2" dump badging "$APK" > ci-output/apk-badging.txt
-grep -E "^package:|^sdkVersion|^targetSdkVersion|^application:|^launchable-activity" ci-output/apk-badging.txt | tee ci-output/apk-identity.txt
+grep -E "^package:|^(min)?[sS]dkVersion|^targetSdkVersion|^application:|^launchable-activity" ci-output/apk-badging.txt | tee ci-output/apk-identity.txt
 grep -qE "^package: name='com.binaa.ocr' " ci-output/apk-badging.txt || { echo "::error::applicationId is not com.binaa.ocr"; fail=1; }
-grep -qE "^sdkVersion:'29'" ci-output/apk-badging.txt || { echo "::error::minSdk is not 29"; fail=1; }
+# aapt2 يطبع minSdkVersion (و aapt القديم sdkVersion).
+grep -qE "^(minSdkVersion|sdkVersion):'29'$" ci-output/apk-badging.txt || { echo "::error::minSdk is not 29"; fail=1; }
 grep -qE "^targetSdkVersion:'36'" ci-output/apk-badging.txt || { echo "::error::targetSdk is not 36"; fail=1; }
-grep -qE "^launchable-activity: name='com.binaa.ocr.MainActivity'\s+label='Binaa OCR V2'" ci-output/apk-badging.txt \
-  || { echo "::error::Launcher is not MainActivity labelled 'Binaa OCR V2'"; fail=1; }
+# MainActivity بلا label خاص (يرث اسم التطبيق)، فـaapt2 يطبع label='' للنشاط؛ الاسم الظاهر هو label التطبيق.
+grep -qE "^launchable-activity: name='com.binaa.ocr.MainActivity' " ci-output/apk-badging.txt \
+  || { echo "::error::Launcher activity is not com.binaa.ocr.MainActivity"; fail=1; }
+grep -qE "^application: label='Binaa OCR V2' " ci-output/apk-badging.txt \
+  || { echo "::error::Application label is not 'Binaa OCR V2'"; fail=1; }
 ICON=$(grep -oE "^application: label='[^']*' icon='[^']*'" ci-output/apk-badging.txt | sed -E "s/.*icon='([^']*)'.*/\1/")
 "$AAPT2" dump xmltree --file "$ICON" "$APK" > ci-output/ic_launcher.xmltree.txt || true
 for layer in adaptive-icon background foreground monochrome; do
