@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 java {
@@ -14,5 +15,9 @@ kotlin {
 }
 
 dependencies {
+    // JSON لـOcrDocument وEvidence والـfixtures والتقارير فقط (OcrJson)؛ لا يستخدمه منطق OCR ولا الـParsers.
+    // implementation: لا يرى :app مكتبة JSON مباشرة، فلا يُستعمل JSON إلا عبر OcrJson.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+
     testImplementation("junit:junit:4.13.2")
 }
