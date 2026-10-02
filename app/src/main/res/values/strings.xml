@@ -70,6 +70,8 @@
     <string name="receipt_direction">الاتجاه</string>
     <string name="direction_in">وارد</string>
     <string name="direction_out">صادر</string>
+    <string name="reading_details">تفاصيل القراءة</string>
+    <string name="reading_details_empty">لم يُقرأ أي رقم من الإيصال.</string>
     <string name="field_pick_one">غير مؤكد، اختر القيمة الصحيحة:</string>
 
     <string name="reject_multiple">شارك صورة واحدة فقط في كل مرة.</string>

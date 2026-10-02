@@ -182,6 +182,7 @@ private fun Received(state: IntakeUiState, onEdit: ((PaymentDraft) -> PaymentDra
         val header = state.header
         if (draft != null && header is HeaderUi.Done) {
             ReviewForm(draft, header, onEdit)
+            (state.receipt as? ReceiptUi.Done)?.rows?.let { ReadingDetails(it) }
         } else {
             state.header?.let { HeaderSection(it) }
             state.receipt?.let { Spacer(Modifier.height(8.dp)); ReceiptSection(it) }
@@ -277,27 +278,16 @@ private fun ReviewForm(draft: PaymentDraft, header: HeaderUi.Done, onEdit: ((Pay
             modifier = Modifier.fillMaxWidth().testTag("review-amount"),
         )
         Candidates(draft.amountCandidates, { "\u2066$it MRU\u2069" }) { c -> onEdit { it.copy(amount = c) } }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = draft.date,
-                onValueChange = { v -> onEdit { it.copy(date = v) } },
-                label = { Text(stringResource(R.string.receipt_date_format)) },
-                textStyle = ltr,
-                isError = draft.date.isNotBlank() && draft.localDate == null,
-                singleLine = true,
-                modifier = Modifier.weight(0.62f).testTag("review-date"),
-            )
-            OutlinedTextField(
-                value = draft.time,
-                onValueChange = { v -> onEdit { it.copy(time = v) } },
-                label = { Text(stringResource(R.string.receipt_time_format)) },
-                textStyle = ltr,
-                isError = draft.time.isNotBlank() && draft.localTime == null,
-                singleLine = true,
-                modifier = Modifier.weight(0.38f).testTag("review-time"),
-            )
-        }
-        Candidates(draft.dateCandidates, { "\u2066${it.first} ${it.second}\u2069" }) { c -> onEdit { it.copy(date = c.first, time = c.second) } }
+        OutlinedTextField(
+            value = draft.date,
+            onValueChange = { v -> onEdit { it.copy(date = v) } },
+            label = { Text(stringResource(R.string.receipt_date_format)) },
+            textStyle = ltr,
+            isError = draft.date.isNotBlank() && draft.localDate == null,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().testTag("review-date"),
+        )
+        Candidates(draft.dateCandidates, { "\u2066${it.first}\u2069" }) { c -> onEdit { it.copy(date = c.first, time = c.second) } }
 
         Text(stringResource(R.string.receipt_provider), style = MaterialTheme.typography.labelLarge, color = colors.textMuted)
         if (draft.providerCandidates.isNotEmpty() && draft.provider == null) {
@@ -308,6 +298,22 @@ private fun ReviewForm(draft: PaymentDraft, header: HeaderUi.Done, onEdit: ((Pay
         Text(stringResource(R.string.receipt_direction), style = MaterialTheme.typography.labelLarge, color = colors.textMuted)
         Chips(listOf("INCOMING", "OUTGOING"), draft.direction, { stringResource(if (it == "INCOMING") R.string.direction_in else R.string.direction_out) }) { d ->
             onEdit { it.copy(direction = d) }
+        }
+    }
+}
+
+/** مؤقت للتشخيص: ما قرأه ML Kit من أرقام الإيصال، على الشاشة فقط، لإرسال لقطة منه حين لا يمتلئ حقل. */
+@Composable
+private fun ReadingDetails(rows: List<String>) {
+    val colors = Binaa.colors
+    var open by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    TextButton(onClick = { open = !open }, modifier = Modifier.testTag("reading-details")) {
+        Text(stringResource(R.string.reading_details), color = colors.brand)
+    }
+    if (open) {
+        Column(Modifier.fillMaxWidth().border(1.dp, colors.divider, MaterialTheme.shapes.medium).padding(8.dp)) {
+            if (rows.isEmpty()) Text(stringResource(R.string.reading_details_empty), color = colors.textMuted)
+            for (r in rows) Text("\u2066$r\u2069", style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr), color = colors.text)
         }
     }
 }
@@ -407,6 +413,7 @@ private fun providerName(p: Provider): String = stringResource(
         Provider.BIMBANK -> R.string.provider_bimbank
         Provider.SEDAD -> R.string.provider_sedad
         Provider.BCIPAY -> R.string.provider_bcipay
+        Provider.MASRVI -> R.string.provider_masrvi
     },
 )
 

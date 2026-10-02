@@ -108,6 +108,51 @@ class ReceiptReaderTest {
     }
 
     @Test
+    fun bankily_colonGluedToTheAmount_isStillTheAmount() {
+        // ML Kit يقرأ «MRU 6200 :المبلغ المرسل» فيُلصق النقطتين بالرقم: «6200:».
+        val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500:", 275, 1032), W("34111222", 599, 1032)))
+        assertEquals(ReceiptField.found(amount("4500.00")), r.amount)
+    }
+
+    @Test
+    fun bankilyInFrench_isNotMistakenForMasrvi() {
+        // «Vérifier les détails entrés» و«Transfert réussi!» في سطرين: ليست «Détails du transfert».
+        val r = read(
+            W("Vérifier", 30, 240), W("les", 200, 240), W("détails", 280, 240),
+            W("Transfert", 380, 360), W("réussi!", 560, 360),
+            W("34111222", 560, 468), W("1860", 430, 486), W("MRU", 520, 486),
+            W("1125091410151234567", 480, 520), W("14-09-25", 470, 538), W("10:15:42", 560, 538),
+        )
+        assertEquals(ReceiptField.found(Provider.BANKILY), r.provider)
+    }
+
+    @Test
+    fun masrvi_transferAmount_notTheSenderTotalNorTheFees() {
+        // «Succès / Détails du transfert / 03/08/2026 13:49» ثم ثلاثة أعمدة في الصفوف نفسها:
+        // «Vous / -12 556,50 MRU» | «Taxe : 45,50 MRU / Frais : 9,17 MRU / Taxe : 1,83 MRU» | «+222 34 11 12 22 / 12 500,00 MRU».
+        val r = read(
+            W("Succès", 470, 590),
+            W("Détails", 420, 635), W("du", 560, 635), W("transfert", 610, 635),
+            W("03/08/2026", 440, 660), W("13:49", 600, 660),
+            W("Vous", 40, 770), W("Taxe", 450, 770), W(":", 540, 770), W("45,50", 560, 770), W("MRU", 660, 770),
+            W("+222", 760, 770), W("34", 860, 770, 40), W("11", 906, 770, 40), W("12", 952, 770, 40), W("22", 998, 770, 40),
+            W("-12", 40, 830, 60), W("556,50", 110, 830, 120), W("MRU", 240, 830),
+            W("Frais", 450, 830), W(":", 540, 830), W("9,17", 560, 830), W("MRU", 660, 830),
+            W("12", 760, 830, 40), W("500,00", 806, 830, 120), W("MRU", 940, 830),
+            W("Taxe", 450, 890), W(":", 540, 890), W("1,83", 560, 890), W("MRU", 660, 890),
+        )
+        assertEquals(ReceiptField.found(Provider.MASRVI), r.provider)
+        assertEquals(ReceiptField.found(amount("12500.00")), r.amount)
+        assertEquals(ReceiptField.found(PaymentDate(LocalDate.of(2026, 8, 3), LocalTime.of(13, 49))), r.date)
+    }
+
+    @Test
+    fun bodyRows_showTheNumberRowsAsRead() {
+        val rows = ReceiptReader.bodyRows(doc(W("MRU", 164, 1032), W("4500:", 275, 1032), W("hello", 300, 1200)), 192)
+        assertEquals(listOf("y1032: «MRU»  «4500»"), rows)
+    }
+
+    @Test
     fun bankily_impossibleDate_isNotRead() {
         val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), id = "1125139910151234567", date = "25-13-99")
         assertEquals(FieldStatus.NOT_FOUND, r.provider.status)

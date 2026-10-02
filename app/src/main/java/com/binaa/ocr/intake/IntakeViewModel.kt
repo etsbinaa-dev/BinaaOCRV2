@@ -51,7 +51,8 @@ sealed interface HeaderUi {
 sealed interface ReceiptUi {
     data object Reading : ReceiptUi
 
-    data class Done(val reading: ReceiptReading) : ReceiptUi
+    /** [rows] = صفوف الأرقام كما قرأها ML Kit، للتشخيص على الشاشة فقط (لا تُسجَّل ولا تُحفظ). */
+    data class Done(val reading: ReceiptReading, val rows: List<String> = emptyList()) : ReceiptUi
 }
 
 /**
@@ -195,8 +196,8 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
                     try {
                         val header = withContext(Dispatchers.Default) { readHeader(result.image.file, bitmap) }
                         _state.update { if (it.image == result.image) it.copy(header = HeaderUi.Done(header)) else it }
-                        val receipt = withContext(Dispatchers.Default) { readReceipt(bitmap, header) }
-                        _state.update { if (it.image == result.image) it.copy(receipt = ReceiptUi.Done(receipt), draft = draftOf(header, receipt)) else it }
+                        val (receipt, rows) = withContext(Dispatchers.Default) { readReceipt(bitmap, header) }
+                        _state.update { if (it.image == result.image) it.copy(receipt = ReceiptUi.Done(receipt, rows), draft = draftOf(header, receipt)) else it }
                     } finally {
                         bitmap?.recycle()
                     }
@@ -245,16 +246,17 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
      * المبلغ والتاريخ: ML Kit على اللقطة كاملة ثم [ReceiptReader]، تحت رأس WhatsApp فقط (تاريخ الرسالة فيه لا يُقرأ).
      * أي فشل ⇒ NOT_FOUND، بلا استثناء ولا سجلات.
      */
-    private fun readReceipt(bitmap: Bitmap?, header: HeaderResult): ReceiptReading = try {
-        readReceiptOverride?.invoke() ?: run {
+    private fun readReceipt(bitmap: Bitmap?, header: HeaderResult): Pair<ReceiptReading, List<String>> = try {
+        readReceiptOverride?.invoke()?.let { it to emptyList() } ?: run {
             checkNotNull(bitmap)
             val bodyTop = header.layout?.headerBar?.b ?: (bitmap.height * HEADER_FALLBACK).toInt()
-            ReceiptReader.read(documentOcr.read(bitmap), bodyTop)
+            val document = documentOcr.read(bitmap)
+            ReceiptReader.read(document, bodyTop) to ReceiptReader.bodyRows(document, bodyTop)
         }
     } catch (e: Exception) {
-        RECEIPT_NOT_READ
+        RECEIPT_NOT_READ to emptyList()
     } catch (e: OutOfMemoryError) {
-        RECEIPT_NOT_READ
+        RECEIPT_NOT_READ to emptyList()
     }
 
     /**

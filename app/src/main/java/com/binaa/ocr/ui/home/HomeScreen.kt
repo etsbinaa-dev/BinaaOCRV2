@@ -80,7 +80,13 @@ fun HomeScreen(
                 modifier = Modifier.background(colors.brand, CircleShape).padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
-        Spacer(Modifier.height(24.dp))
+        Text(
+            "\u2066" + com.binaa.ocr.BuildConfig.VERSION_NAME + "\u2069",
+            style = MaterialTheme.typography.labelSmall,
+            color = colors.textMuted,
+            modifier = Modifier.testTag("version"),
+        )
+        Spacer(Modifier.height(20.dp))
         val empty = state.pending.isEmpty() && state.archived.isEmpty()
         GuideCard(startOpen = empty)
         Spacer(Modifier.height(16.dp))
@@ -173,7 +179,7 @@ private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore
         }
         Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text)
         Text(
-            "\u2066" + r.date + (r.time?.let { " $it" } ?: "") + "\u2069" + (r.provider?.let { "  ·  " + providerLabel(it) } ?: ""),
+            "\u2066" + r.date + "\u2069" + (r.provider?.let { "  ·  " + providerLabel(it) } ?: ""),
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textMuted,
         )

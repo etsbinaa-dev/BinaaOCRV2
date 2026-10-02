@@ -129,7 +129,8 @@ android {
         targetSdk = 36
         // يجب أن يزيد versionCode في كل نسخة تُوزَّع، وإلا رفض Android التحديث.
         versionCode = 1
-        versionName = "2.0.0-alpha1"
+        // رقم كل نسخة ظاهر في الشاشة الرئيسية: أول 7 أحرف من commit البناء (في CI)، فلا تلتبس نسخة قديمة بجديدة.
+        versionName = "2.0.0-alpha1+" + (System.getenv("GITHUB_SHA")?.take(7) ?: "local")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
