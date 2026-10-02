@@ -108,7 +108,12 @@ object HeaderDetector {
     fun detect(image: PixelImage): Detection {
         val zoneH = (image.height * 0.11).toInt()
         val zone = Array(zoneH) { y -> IntArray(image.width) { x -> image.argb[y * image.width + x] } }
-        return detectLtr(zone, image.width, image.height)
+        val d = detectLtr(zone, image.width, image.height)
+        if (d.rejection != DetectorRejection.NO_ICON_GROUP) return d
+        // إشعار في صورة الإيصال خلف شريط WhatsApp الشفاف: نصه الداكن يلتصق بالأيقونات فيغيّر حجمها.
+        // أيقونات WhatsApp أفتح دائمًا من الشريط ⇒ إعادة البحث بالبكسلات الأفتح فقط. رفض فقط يُعاد فحصه؛ ما قُبل لا يتغير.
+        val bright = detectLtr(zone, image.width, image.height, brighterIconsOnly = true)
+        return if (bright.headerFound) bright else d
     }
 
     private fun rgb(p: Int) = intArrayOf((p shr 16) and 255, (p shr 8) and 255, p and 255)
@@ -136,7 +141,7 @@ object HeaderDetector {
     }
 
     /** الكاشف الأصلي (رأس LTR: الأيقونات يمينًا والسهم يسارًا) على شريط الرأس. */
-    private fun detectLtr(px: Array<IntArray>, W: Int, height: Int): Detection {
+    private fun detectLtr(px: Array<IntArray>, W: Int, height: Int, brighterIconsOnly: Boolean = false): Detection {
         val zoneH = px.size
         val s = W / REFERENCE_WIDTH
         fun scaled(v: Int) = v * s
@@ -148,7 +153,8 @@ object HeaderDetector {
         fun dist(p: Int): Double { val q = rgb(p); return sqrt(((q[0]-B[0])*(q[0]-B[0]) + (q[1]-B[1])*(q[1]-B[1]) + (q[2]-B[2])*(q[2]-B[2])).toDouble()) }
 
         // 2) أيقونات ☆ ↪ (⋮): في صف الرأس فقط (أعلى 8%)، شبه مربعة، متباعدة (فراغ ≥ عرض أيقونة)، الأقرب إلى الطرف.
-        val strong = Array(zoneH) { y -> BooleanArray(W) { x -> dist(px[y][x]) > 110 } }
+        val lumB = B.sum()
+        val strong = Array(zoneH) { y -> BooleanArray(W) { x -> dist(px[y][x]) > 110 && (!brighterIconsOnly || rgb(px[y][x]).sum() > lumB) } }
         val iconZone = (height * 0.08).toInt()
         val iconSize = scaled(25)..scaled(90)
         val right = components(strong, W / 2, 0, W, iconZone)

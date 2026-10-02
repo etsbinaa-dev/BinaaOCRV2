@@ -70,6 +70,21 @@ class HeaderDetectorTest {
     }
 
     @Test
+    fun darkNotificationTextBehindTheBar_touchingTheStar_isNotAnIcon() {
+        // كما على S26 (إيصال BCIpay): الشريط الشفاف فوق خلفية فاتحة، ونص إشعار داكن خلفه يلتصق بأعلى ☆ فيطيلها.
+        val bar = 0xFF646871.toInt(); val ink = 0xFF141414.toInt()
+        val c = canvas(bar).apply {
+            viewer()
+            rect(718, 40, 770, 62, ink)
+            rect(800, 40, 820, 72, ink); rect(910, 40, 930, 72, ink) // حروف أضيق من أيقونة
+        }
+        val d = HeaderDetector.detect(c.image())
+        assertNull(d.rejection)
+        assertEquals(listOf(Box(718, 62, 770, 111), Box(858, 64, 902, 105)), d.layout!!.icons)
+        assertEquals(Box(148, 31, 450, 80), d.layout!!.name)
+    }
+
+    @Test
     fun nameImage_isTheNameLineOnly_neverTheSubtitle() {
         val d = HeaderDetector.detect(canvas().apply { viewer() }.image())
         val box = d.nameImage!!.box
