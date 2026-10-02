@@ -13,7 +13,6 @@ import androidx.core.content.IntentCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.binaa.ocr.core.intake.IntakePhase
 import com.binaa.ocr.core.intake.ShareAction
-import com.binaa.ocr.ui.secureWindow
 import com.binaa.ocr.ui.theme.BinaaTheme
 
 /**
@@ -26,7 +25,6 @@ class IntakeActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        secureWindow()
         enableEdgeToEdge()
         // الـViewModel يبقى عبر تدوير الشاشة، فلا تُعاد المعالجة. بعد موت العملية يعود فارغًا فتُعاد من المشاركة نفسها.
         if (viewModel.state.value.phase == IntakePhase.IDLE && !viewModel.state.value.closed) handleShare(intent)
