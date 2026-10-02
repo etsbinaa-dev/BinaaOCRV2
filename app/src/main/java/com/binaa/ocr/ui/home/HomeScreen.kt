@@ -179,10 +179,22 @@ private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore
         }
         Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text)
         Text(
-            "\u2066" + r.date + "\u2069" + (r.provider?.let { "  ·  " + providerLabel(it) } ?: ""),
+            "\u2066" + r.date + "\u2069",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textMuted,
         )
+        r.provider?.let { p ->
+            // شارة كبيرة بلون كل تطبيق (بلا شعارات تجارية: لا صور داخل التطبيق).
+            Text(
+                providerLabel(p),
+                style = MaterialTheme.typography.titleMedium,
+                color = androidx.compose.ui.graphics.Color.White,
+                modifier = Modifier
+                    .background(providerColor(p), MaterialTheme.shapes.medium)
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                    .testTag("provider-${r.id}"),
+            )
+        }
         Spacer(Modifier.height(6.dp))
         if (r.status == PaymentStatus.PENDING) {
             Button(
@@ -246,3 +258,15 @@ private fun Step(number: Int, @StringRes text: Int) {
         Text(stringResource(text), style = MaterialTheme.typography.bodyLarge, color = colors.text)
     }
 }
+
+/** لون ثابت لكل تطبيق دفع، ليُعرف من النظرة الأولى. */
+private fun providerColor(p: String) = androidx.compose.ui.graphics.Color(
+    when (p) {
+        "BANKILY" -> 0xFF0097B2
+        "MASRVI" -> 0xFF2E7D32
+        "SEDAD" -> 0xFF43A047
+        "BIMBANK" -> 0xFFE65100
+        "BCIPAY" -> 0xFF5B3CC4
+        else -> 0xFF607D8B
+    },
+)
