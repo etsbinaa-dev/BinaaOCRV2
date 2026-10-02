@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- تطبيق عادي بلا أي صلاحية ولا نشاط. queries فقط ليرى أن نسخة debug مثبتة (رؤية الحزم في Android 11+). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <package android:name="com.binaa.ocr.debug" />
+    </queries>
+    <application android:label="Binaa access probe" />
+</manifest>

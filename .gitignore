@@ -15,6 +15,9 @@ ci-output/
 *.keystore
 *.p12
 
+# نماذج Tesseract لا تدخل Git (تُنزَّل وقت البناء ويُتحقق منها: tessdata/tessdata.lock).
+*.traineddata
+
 # الصور الحقيقية وGolden Corpus لا تدخل Git أبدًا (CI يرفض أي صورة نقطية متتبَّعة).
 *.png
 *.jpg
@@ -25,3 +28,8 @@ ci-output/
 *.gif
 *.bmp
 corpus/
+
+# تقارير Golden Corpus المسحوبة من الهاتف (التقرير الكامل فيه نصوص إيصالات حقيقية).
+corpus-reports-local/
+report.json
+report-masked.json

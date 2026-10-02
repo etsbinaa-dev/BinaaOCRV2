@@ -1,1 +1,3 @@
-# لا قواعد خاصة حاليًا: كل الكود يُستخدم مباشرة من الـManifest أو من Compose.
+# Tesseract4Android: الكود الأصلي (JNI) يصل إلى هذه الفئات وحقولها وأساليبها بالاسم؛ لا يُعاد تسميتها ولا تُحذف.
+-keep class com.googlecode.tesseract.android.** { *; }
+-keep class com.googlecode.leptonica.android.** { *; }

@@ -1,0 +1,6 @@
+# نماذج Tesseract لاسم رأس WhatsApp: تُنزَّل وقت البناء من المستودع الرسمي بالـcommit المثبّت، ويُتحقق من الحجم وSHA-256
+# قبل التغليف (أي اختلاف يُفشل البناء)، ثم مرة أخرى في APK الإصدار. الملفات نفسها لا تدخل Git أبدًا.
+# ara وeng كلاهما من tessdata_best. eng كان من tessdata_fast فقرأ حرفًا لاتينيًا خطأ (h⇒n) في اسم على لقطة حقيقية؛ best يقرؤه صحيحًا.
+# language  repository                 commit                                    sha256                                                            bytes
+ara         tesseract-ocr/tessdata_best  e12c65a915945e4c28e237a9b52bc4a8f39a0cec  ab9d157d8e38ca00e7e39c7d5363a5239e053f5b0dbdb3167dde9d8124335896  12603724
+eng         tesseract-ocr/tessdata_best  e12c65a915945e4c28e237a9b52bc4a8f39a0cec  8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba  15400601
