@@ -48,6 +48,7 @@
     <string name="provider_bankily">بنكيلي</string>
     <string name="provider_bimbank">BIMBANK</string>
     <string name="provider_sedad">السداد</string>
+    <string name="provider_bcipay">BCI Pay</string>
 
     <string name="reject_multiple">شارك صورة واحدة فقط في كل مرة.</string>
     <string name="reject_no_image">لم تصل أي صورة. شارك لقطة الشاشة من WhatsApp.</string>

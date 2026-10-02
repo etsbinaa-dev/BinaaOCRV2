@@ -276,6 +276,7 @@ private fun providerName(p: Provider): String = stringResource(
         Provider.BANKILY -> R.string.provider_bankily
         Provider.BIMBANK -> R.string.provider_bimbank
         Provider.SEDAD -> R.string.provider_sedad
+        Provider.BCIPAY -> R.string.provider_bcipay
     },
 )
 

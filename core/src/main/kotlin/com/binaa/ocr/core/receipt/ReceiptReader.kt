@@ -6,7 +6,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /** تطبيقات الدفع المدعومة الآن (كل واحد بصيغه المعروفة فقط). */
-enum class Provider { BANKILY, BIMBANK, SEDAD }
+enum class Provider { BANKILY, BIMBANK, SEDAD, BCIPAY }
 
 enum class FieldStatus { FOUND, UNCERTAIN, NOT_FOUND }
 
@@ -75,7 +75,8 @@ data class ReceiptReading(
  * - **بنكيلي** (بالعربية أو الفرنسية): يُعرَف بمعرّف المعاملة (19 رقمًا) الذي يحمل تاريخ ووقت العملية YYMMDDhhmm بعد أول
  *   رقمين، ويطابق سطر التاريخ والوقت (YY-MM-DD أو DD-MM-YY، hh:mm:ss). المطابقة نفسها تحسم ترتيب التاريخ. المبلغ = الرقم الملاصق لـ«MRU»
  *   (في سطره، أو آخر رقم من جهة اليسار في السطر السابق إن نزلت MRU وحدها إلى سطر جديد).
- * - **BIMBANK** و**السداد**: يُعرفان بشعارهما المكتوب لاتينيًا. المبلغ بصيغة 74.650,00؛ التاريخ DD-MM-YYYY.
+ * - **BIMBANK** و**السداد** و**BCI Pay** (بالعربية أو الفرنسية): تُعرف بشعارها المكتوب لاتينيًا. المبلغ بصيغة 74.650,00
+ *   أو 30 000,00 (مسافة بين الآلاف، وقد يقرؤها ML Kit كلمتين متجاورتين)؛ التاريخ DD-MM-YYYY.
  *
  * لا يُقرأ شيء من رأس WhatsApp (فيه تاريخ الرسالة) ولا من شريط الرد أسفل الشاشة: فقط ما بين [bodyTop] و[bodyBottom].
  * رقم من 8 أرقام أو أكثر بلا فواصل (هاتف، حساب، معرّف) لا يكون مبلغًا أبدًا.
@@ -83,22 +84,34 @@ data class ReceiptReading(
 object ReceiptReader {
 
     fun read(document: OcrDocument, bodyTop: Int, bodyBottom: Int = (document.image.height * 0.92).toInt()): ReceiptReading {
-        val words = document.words.mapNotNull { w -> w.box?.let { Token(w.text.trim(), it) } }
-            .filter { it.text.isNotEmpty() && it.box.top >= bodyTop && it.box.bottom <= bodyBottom }
+        val all = document.words.mapNotNull { w -> w.box?.let { Token(w.text.trim(), it) } }.filter { it.text.isNotEmpty() }
+        val words = all.filter { it.box.top >= bodyTop && it.box.bottom <= bodyBottom }
         val rows = rows(words)
+        // شعار التطبيق قد يختفي نصفه تحت شريط WhatsApp: يكفي أن ينزل تحته. ما كان كله داخل الشريط (اسم جهة الاتصال) لا يُقرأ.
+        val logos = all.filter { it.box.bottom > bodyTop && it.box.bottom <= bodyBottom }
 
         val bankilyDates = bankilyDates(words, rows)
         val found = buildList {
             if (bankilyDates.isNotEmpty()) add(Provider.BANKILY)
-            if (words.any { BIMBANK.containsMatchIn(it.text) }) add(Provider.BIMBANK)
-            if (words.any { SEDAD.matches(it.text) }) add(Provider.SEDAD)
+            if (logos.any { BIMBANK.containsMatchIn(it.text) }) add(Provider.BIMBANK)
+            if (logos.any { SEDAD.matches(it.text) }) add(Provider.SEDAD)
+            if (logos.any { BCIPAY.matches(it.text) }) add(Provider.BCIPAY)
         }
         return when (found.size) {
-            0 -> unread(ReceiptField.notFound(FieldReason.UNKNOWN_PROVIDER), FieldReason.UNKNOWN_PROVIDER)
+            // بلا شعار مقروء: معرّف «TR…» يخص السداد وBCI Pay (الصيغ نفسها: 30 000,00 و DD-MM-YYYY) ⇒ التطبيق غير مؤكد
+            // بينهما، والمبلغ والتاريخ يُقرآن بصيغتهما المشتركة.
+            0 -> if (words.any { TR_ID.matches(it.text) }) {
+                european(Provider.SEDAD, words, rows).copy(
+                    provider = ReceiptField(FieldStatus.UNCERTAIN, null, listOf(Provider.SEDAD, Provider.BCIPAY), FieldReason.CONFLICTING_PROVIDERS),
+                )
+            } else {
+                unread(ReceiptField.notFound(FieldReason.UNKNOWN_PROVIDER), FieldReason.UNKNOWN_PROVIDER)
+            }
             1 -> when (found.single()) {
                 Provider.BANKILY -> ReceiptReading(ReceiptField.found(Provider.BANKILY), ReceiptField.of(bankilyAmounts(rows)), ReceiptField.of(bankilyDates))
                 Provider.BIMBANK -> european(Provider.BIMBANK, words, rows)
                 Provider.SEDAD -> european(Provider.SEDAD, words, rows)
+                Provider.BCIPAY -> european(Provider.BCIPAY, words, rows)
             }
             else -> unread(ReceiptField(FieldStatus.UNCERTAIN, null, found, FieldReason.CONFLICTING_PROVIDERS), FieldReason.CONFLICTING_PROVIDERS)
         }
@@ -174,8 +187,8 @@ object ReceiptReader {
     // ------------------------------------------------------------------ BIMBANK والسداد
 
     private fun european(provider: Provider, words: List<Token>, rows: List<List<Token>>): ReceiptReading {
-        val amounts = words.mapNotNull { EUROPEAN_AMOUNT.matchEntire(it.text) }.map { m ->
-            Amount(m.groupValues[1].replace(".", "").toLong() * 100 + m.groupValues[2].toLong())
+        val amounts = rows.flatMap { joinedNumbers(it) }.mapNotNull { EUROPEAN_AMOUNT.matchEntire(it) }.map { m ->
+            Amount(m.groupValues[1].replace(Regex("[. ]"), "").toLong() * 100 + m.groupValues[2].toLong())
         }
         val dates = rows.flatMap { row ->
             row.mapNotNull { LONG_DATE.matchEntire(it.text) }.mapNotNull { m ->
@@ -184,6 +197,25 @@ object ReceiptReader {
             }
         }
         return ReceiptReading(ReceiptField.found(provider), ReceiptField.of(amounts), ReceiptField.of(dates))
+    }
+
+    /**
+     * نصوص الأرقام في الصف: الكلمات الرقمية المتجاورة جدًّا (فراغ أقل من ارتفاع الكلمة) تُضم بمسافة كرقم واحد
+     * («30» + «000,00» ⇒ «30 000,00»)، ولا تُحسب أجزاؤه وحدها. إن لم يكن المضموم مبلغًا صالحًا تُعاد الكلمات منفردة.
+     */
+    private fun joinedNumbers(row: List<Token>): List<String> {
+        val runs = mutableListOf<MutableList<Token>>()
+        for (t in row) {
+            if (!NUMERIC.matches(t.text)) continue
+            val run = runs.lastOrNull()
+            val prev = run?.last()
+            if (prev != null && row.indexOf(prev) == row.indexOf(t) - 1 && t.box.left - prev.box.right in 0 until t.box.height) run += t
+            else runs += mutableListOf(t)
+        }
+        return runs.flatMap { run ->
+            val joined = run.joinToString(" ") { it.text }
+            if (run.size == 1 || EUROPEAN_AMOUNT.matches(joined)) listOf(joined) else run.map { it.text }
+        }
     }
 
     /** مبلغ بنكيلي: 6200 أو 6.200 أو 6,200 أو 6200.00، وليس رقمًا طويلًا بلا فواصل (هاتف أو معرّف). */
@@ -200,7 +232,13 @@ object ReceiptReader {
     private val TIME = Regex("""(\d{2}):(\d{2})(?::(\d{2}))?""")
     private val BIMBANK = Regex("""(?i)bimbank|^BIM-""")
     private val SEDAD = Regex("""(?i)sedad""")
-    private val EUROPEAN_AMOUNT = Regex("""(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})""")
+    /** «BCIpay»، وقد يقرأ ML Kit حرف I كـl أو 1. */
+    private val BCIPAY = Regex("""(?i)bc[il1|]\s?pay""")
+    /** معرّف معاملة السداد وBCI Pay: TR ثم 9–11 رقمًا (وقد يُقرأ الصفر الأول O). */
+    private val TR_ID = Regex("""TR[0O]\d{8,10}""")
+    private val NUMERIC = Regex("""[\d.,]+""")
+    /** 74.650,00 أو 30 000,00 أو 7200,00. لا يبدأ بصفر (فـ«000,00» وحدها، نصف «30 000,00»، ليست مبلغًا). */
+    private val EUROPEAN_AMOUNT = Regex("""([1-9]\d{0,2}(?:[. ]\d{3})+|[1-9]\d*|0),(\d{2})""")
 
     /** 1 إلى 7 أرقام، وكسر بنقطة ورقمين اختياري. */
     private val PLAIN_AMOUNT = Regex("""([1-9]\d{0,6})(?:\.(\d{2}))?""")

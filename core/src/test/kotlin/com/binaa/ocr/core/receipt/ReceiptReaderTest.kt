@@ -144,6 +144,51 @@ class ReceiptReaderTest {
     }
 
     @Test
+    fun bcipay_spaceGroupedAmount_readAsTwoWords_isJoined() {
+        // «Vous avez envoyé 30 000,00 / MRU à …»: ML Kit يقرأ «30» و«000,00» كلمتين متجاورتين.
+        val r = read(
+            W("BCIpay", 430, 165),  // نصفه تحت شريط WhatsApp (bodyTop = 192)
+            W("Vous", 80, 825), W("avez", 200, 825), W("envoyé", 320, 825), W("12", 590, 825, 50), W("500,00", 655, 825, 130),
+            W("MRU", 160, 895), W("TR012345678", 612, 1052),
+            W("20-07-2026", 536, 1160), W("17:33:05", 760, 1160),
+        )
+        assertEquals(ReceiptField.found(Provider.BCIPAY), r.provider)
+        assertEquals(ReceiptField.found(amount("12500.00")), r.amount)
+        assertEquals(ReceiptField.found(PaymentDate(LocalDate.of(2026, 7, 20), LocalTime.of(17, 33, 5))), r.date)
+    }
+
+    @Test
+    fun bcipay_readAsBClpay_isStillBciPay() {
+        val r = read(W("BClpay", 430, 200), W("12.500,00", 590, 825), W("20-07-2026", 536, 1160))
+        assertEquals(ReceiptField.found(Provider.BCIPAY), r.provider)
+        assertEquals(ReceiptField.found(amount("12500.00")), r.amount)
+    }
+
+    @Test
+    fun providerWordEntirelyInsideTheWhatsAppHeader_isNotALogo() {
+        // جهة اتصال اسمها «Sedad…»: الاسم كله داخل الشريط ⇒ لا يعني أن الإيصال من السداد.
+        val r = read(W("Sedad", 146, 40), W("3.150,00", 277, 819), W("03-08-2026", 248, 1245))
+        assertEquals(FieldStatus.NOT_FOUND, r.provider.status)
+    }
+
+    @Test
+    fun trTransactionId_withoutALogo_providerUncertain_amountAndDateRead() {
+        // الشعار مخفي تحت شريط WhatsApp: «TR…» يكفي لصيغة السداد / BCI Pay المشتركة.
+        val r = read(W("12", 590, 825, 50), W("500,00", 655, 825, 130), W("MRU", 160, 895), W("TRO12345678", 612, 1052), W("20-07-2026", 536, 1160), W("17:33:05", 760, 1160))
+        assertEquals(FieldStatus.UNCERTAIN, r.provider.status)
+        assertEquals(listOf(Provider.SEDAD, Provider.BCIPAY), r.provider.candidates)
+        assertEquals(ReceiptField.found(amount("12500.00")), r.amount)
+        assertEquals(LocalDate.of(2026, 7, 20), r.date.value!!.date)
+    }
+
+    @Test
+    fun farApartNumbers_onOneRow_areNotJoined() {
+        // «12» بعيدًا عن «500,00» (عمود آخر): لا يُضمّان ⇒ المبلغ 500,00 وحده.
+        val r = read(W("SEDAD", 362, 288), W("12", 80, 825, 50), W("500,00", 655, 825, 130), W("03-08-2026", 248, 1245))
+        assertEquals(ReceiptField.found(amount("500.00")), r.amount)
+    }
+
+    @Test
     fun european_twoDifferentAmounts_areUncertain() {
         val r = read(W("SEDAD", 362, 288), W("3.150,00", 277, 819), W("3.510,00", 277, 900), W("03-08-2026", 248, 1245))
         assertEquals(FieldStatus.UNCERTAIN, r.amount.status)
