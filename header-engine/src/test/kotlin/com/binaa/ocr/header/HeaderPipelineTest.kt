@@ -291,4 +291,80 @@ class HeaderPipelineTest {
         for (p in printed) for (w in words) assertFalse("'$w' printed in $p", p.contains(w))
         assertNotNull(r.result.name)
     }
+
+    // ------------------------------------------------------------------ القراءة الثانية (لاتيني أولًا)
+
+    private fun run2(c: Canvas, tess: FakeTess, ml: FakeMl, latin: FakeTess) =
+        HeaderPipeline.run(c.image(), tess, tessInfo, ml, mlInfo, latin, EngineInfo("tesseract", "eng+ara"))
+
+    @Test
+    fun latinName_misreadAsDigitsFirst_isReadByTheLatinFirstPass_andConfirmedByMlKit() {
+        // ara+eng: «Zyxwq 862610 Abc» ⇒ لا اسم. eng+ara: «Zyxwq Qwerty Abc» وML Kit يؤكد كل كلمة ⇒ FOUND.
+        val latin = FakeTess(listOf("Zyxwq", "Qwerty", "Abc"))
+        val r = run2(viewer(three), FakeTess(listOf("Zyxwq", "862610", "Abc")), FakeMl(listOf("Zyxwq", "Qwerty", "Abc")), latin)
+        assertEquals(NameStatus.FOUND, r.result.status)
+        assertEquals("Zyxwq Qwerty Abc", r.result.name)
+        assertEquals(1, latin.calls)
+        assertEquals(3, r.evidence.size)
+    }
+
+    @Test
+    fun latinFirstPass_dropsATrailingContactTag_readAsClit() {
+        // الوسم في آخر السطر يُقرأ «Clit» وML Kit يقرأ «Clt»: يُحذف الوسم وحده، والاسم مؤكد.
+        val r = run2(
+            viewer(three),
+            FakeTess(listOf("Zyxwq", "862610", "Clit")),
+            FakeMl(listOf("Zyxwq", "Qwerty", "Clt")),
+            FakeTess(listOf("Zyxwq", "Qwerty", "Clit")),
+        )
+        assertEquals("Zyxwq Qwerty", r.result.name)
+    }
+
+    @Test
+    fun latinFirstPass_mlKitDisagrees_staysNotFound() {
+        val r = run2(
+            viewer(three),
+            FakeTess(listOf("Zyxwq", "862610", "Abc")),
+            FakeMl(listOf("Zyxwq", "Qwertv", "Abc")),
+            FakeTess(listOf("Zyxwq", "Qwerty", "Abc")),
+        )
+        assertEquals(NameStatus.NOT_FOUND, r.result.status)
+        assertEquals(NameReason.NAME_UNREADABLE, r.result.reason)
+    }
+
+    @Test
+    fun latinFirstPass_withArabicWords_isNeverUsed() {
+        // اسم مختلط: القراءة الثانية لا تُقبل أبدًا (عربي فيها) ⇒ تبقى نتيجة القراءة الأولى.
+        val r = run2(
+            viewer(three),
+            FakeTess(listOf("نور", "Cit", "سالم"), listOf(80, 93, 80)),
+            FakeMl(listOf(null, "CIt", null)),
+            FakeTess(listOf("نور", "Cit", "سالم")),
+        )
+        assertEquals(NameStatus.NOT_FOUND, r.result.status)
+        assertEquals(DecisionCode.ALL_WORDS_UNRELIABLE, r.result.decision!!.code)
+    }
+
+    @Test
+    fun latinFirstPass_runsOnlyWhenTheFirstReadingFailedWithLatinLetters() {
+        val found = FakeTess(listOf("x", "y", "z"))
+        run2(viewer(three), FakeTess(listOf("Zyxwq", "Qwerty", "Abc")), FakeMl(listOf("Zyxwq", "Qwerty", "Abc")), found)
+        assertEquals("first reading found the name", 0, found.calls)
+        val arabic = FakeTess(listOf("x", "y", "z"))
+        run2(viewer(three), FakeTess(listOf("نور", "كريم", "سالم"), listOf(80, 80, 80)), FakeMl(listOf(null, null, null)), arabic)
+        assertEquals("no Latin letters in the first reading", 0, arabic.calls)
+    }
+
+    @Test
+    fun latinFirstPassFailure_keepsTheFirstResult_noException() {
+        val r = run2(
+            viewer(three),
+            FakeTess(listOf("Zyxwq", "862610", "Abc")),
+            FakeMl(listOf("Zyxwq", "Qwerty", "Abc")),
+            FakeTess(listOf("x", "y", "z"), fail = true),
+        )
+        assertEquals(NameStatus.NOT_FOUND, r.result.status)
+        assertEquals(NameReason.NAME_UNREADABLE, r.result.reason)
+        assertNull(r.failure)
+    }
 }

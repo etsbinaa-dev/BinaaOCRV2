@@ -11,7 +11,12 @@ import java.io.Closeable
  * كائن TessBaseAPI واحد خلف قفل (ليس thread-safe)، و clear() بعد كل قراءة، و recycle() عند الإغلاق.
  * لا سجلات إطلاقًا (لا نص ولا صورة). يُستدعى خارج الـMain Thread.
  */
-class TesseractLineReader(context: Context, private val installer: TessdataInstaller = TessdataInstaller(context)) : TesseractWordReader, Closeable {
+class TesseractLineReader(
+    context: Context,
+    private val installer: TessdataInstaller = TessdataInstaller(context),
+    /** ara+eng (القراءة الأساسية)، أو eng+ara للقراءة الثانية للأسماء اللاتينية ([LATIN_FIRST]). */
+    private val languages: String = installer.languages,
+) : TesseractWordReader, Closeable {
 
     private val lock = Any()
     private var tess: TessBaseAPI? = null
@@ -54,7 +59,7 @@ class TesseractLineReader(context: Context, private val installer: TessdataInsta
     private fun init(): TessBaseAPI? = try {
         val dataPath = installer.install()
         val api = TessBaseAPI()
-        if (!api.init(dataPath.absolutePath, installer.languages, TessBaseAPI.OEM_LSTM_ONLY)) {
+        if (!api.init(dataPath.absolutePath, languages, TessBaseAPI.OEM_LSTM_ONLY)) {
             api.recycle()
             null
         } else {
@@ -72,6 +77,11 @@ class TesseractLineReader(context: Context, private val installer: TessdataInsta
     }
 
     companion object {
+        /** القراءة الثانية للأسماء اللاتينية فقط: الإنجليزية أولًا (ara+eng قد يقرأ كلمة لاتينية كأرقام). */
+        const val LATIN_FIRST = "eng+ara"
+
+        val LATIN_FIRST_ENGINE get() = EngineInfo(ENGINE.name, ENGINE.version + " " + LATIN_FIRST)
+
         /** المحرك وإصداره والنماذج المثبّتة (لغة@مستودع@commit قصير)، كما تُسجَّل في الأدلة. */
         val ENGINE = EngineInfo(
             "tesseract4android",

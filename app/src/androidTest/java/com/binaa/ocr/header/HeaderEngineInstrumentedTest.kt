@@ -77,6 +77,18 @@ class HeaderEngineInstrumentedTest {
     }
 
     @Test
+    fun latinFirstReader_initialisesOffline_andReadsTheNameLine() {
+        // القراءة الثانية للأسماء اللاتينية (eng+ara) بنفس النموذجين المثبّتين.
+        val bitmap = SyntheticHeader.viewer("Karim Saleh")
+        val name = HeaderDetector.detect(BitmapPixels.toPixelImage(bitmap)).nameImage!!
+        bitmap.recycle()
+        TesseractLineReader(context, languages = TesseractLineReader.LATIN_FIRST).use { reader ->
+            val words = reader.read(NamePrep.prepare(name))
+            assertTrue("$words", words != null && words.isNotEmpty() && words.all { it.confidence in 0..100 })
+        }
+    }
+
+    @Test
     fun readingTwice_reusesTheSameTesseract_andGivesTheSameResult() {
         val first = read("Karim Saleh")
         val second = read("Karim Saleh")

@@ -47,6 +47,8 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 - لا رأس، أو أكثر من رأس حقيقي (`MULTIPLE_HEADER_CANDIDATES`) ⇒ `HEADER_NOT_DETECTED` بلا أي OCR. نص الإيصال لا يُقرأ هنا أبدًا.
 - فشل Tesseract (غير متاح أو استثناء) ⇒ `NAME_UNREADABLE` ولا يُشغَّل ML Kit. فشل ML Kit ⇒ `NAME_UNREADABLE`. لا استثناء يخرج.
 - Tesseract (tesseract4android 4.9.0): `OEM_LSTM_ONLY`، `PSM_SINGLE_LINE`، `ara+eng`، كلمات `RIL_WORD`. كائن واحد خلف قفل.
+- قراءة ثانية للأسماء اللاتينية فقط (`eng+ara`): إذا لم تعطِ القراءة الأولى اسمًا وفيها حروف لاتينية (`ara+eng` قد يقرأ كلمة
+  لاتينية كأرقام). تُقبل فقط إذا كان الاسم كله لاتينيًا وأكّد ML Kit كل كلماته، وفيها يُحذف وسم Clt (وأشكاله المقروءة) من آخر السطر.
 - النماذج: `ara` من `tessdata_best` و`eng` من `tessdata_fast` (نفس ملفي Binaa Payment OCR)، بالـcommit والـSHA-256 في
   `tessdata/tessdata.lock`. تُنزَّل وقت البناء (`fetchTessdata`) ويُتحقق منها قبل التغليف، ثم في APK الإصدار، ثم على الهاتف
   قبل كل تهيئة (تُنسخ إلى `noBackupFilesDir`). لا تنزيل على الهاتف ولا صلاحية شبكة.

@@ -20,7 +20,7 @@ class TessdataInstaller(private val context: Context, private val models: List<M
     val dataPath: File get() = File(context.noBackupFilesDir, "tesseract")
 
     /** @return [dataPath] بعد التحقق من كل النماذج. يرمي استثناءً إن تعذّر تثبيت نموذج مطابق. */
-    fun install(): File {
+    fun install(): File = synchronized(INSTALL_LOCK) {
         val dir = File(dataPath, "tessdata").apply { mkdirs() }
         for (model in models) {
             val target = File(dir, "${model.language}.traineddata")
@@ -34,12 +34,15 @@ class TessdataInstaller(private val context: Context, private val models: List<M
             target.delete()
             check(part.renameTo(target)) { "cannot install ${model.language} model" }
         }
-        return dataPath
+        dataPath
     }
 
     val languages: String get() = models.joinToString("+") { it.language }
 
     companion object {
+        /** قارئان (ara+eng و eng+ara) يتشاركان المجلد نفسه: تثبيت واحد في كل مرة. */
+        private val INSTALL_LOCK = Any()
+
         /** tessdata.lock كما ثُبّت وقت البناء. */
         val PINNED: List<Model> = BuildConfig.TESSDATA_MODELS.split(';').map { line ->
             val (language, repository, commit, sha, bytes) = line.split(' ')
