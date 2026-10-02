@@ -37,6 +37,8 @@ class IntakeActivity : ComponentActivity() {
                     onClose = viewModel::close,
                     onConfirmReplace = viewModel::confirmReplace,
                     onKeepCurrent = viewModel::keepCurrent,
+                    onEdit = viewModel::editDraft,
+                    onSave = viewModel::save,
                 )
             }
         }

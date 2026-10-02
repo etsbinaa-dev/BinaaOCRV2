@@ -16,6 +16,7 @@ import com.binaa.ocr.core.intake.IntakeSession
 import com.binaa.ocr.core.intake.NewShareDecision
 import com.binaa.ocr.core.intake.ShareAction
 import com.binaa.ocr.core.intake.ShareCheck
+import com.binaa.ocr.core.archive.PaymentStore
 import com.binaa.ocr.core.receipt.FieldReason
 import com.binaa.ocr.core.receipt.ReceiptField
 import com.binaa.ocr.core.receipt.ReceiptReader
@@ -24,6 +25,8 @@ import com.binaa.ocr.header.HeaderEngine
 import com.binaa.ocr.header.HeaderResult
 import com.binaa.ocr.header.NameReason
 import com.binaa.ocr.header.NameStatus
+import java.time.LocalDate
+import java.time.LocalTime
 import com.binaa.ocr.ocr.MlKitOcrAdapter
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +54,30 @@ sealed interface ReceiptUi {
     data class Done(val reading: ReceiptReading) : ReceiptUi
 }
 
+/**
+ * ما سيُحفظ بعد مراجعة المستخدم: نصوص قابلة للتعديل، مملوءة مسبقًا بما قُرئ بيقين (FOUND) فقط.
+ * «غير مؤكد» لا يملأ الحقل: مرشّحوه يظهرون ليختار المستخدم بلمسة. لا حفظ قبل اكتمال الاسم والمبلغ والتاريخ والاتجاه.
+ */
+data class PaymentDraft(
+    val name: String = "",
+    val amount: String = "",
+    val amountCandidates: List<String> = emptyList(),
+    val date: String = "",
+    val time: String = "",
+    val dateCandidates: List<Pair<String, String>> = emptyList(),
+    /** BANKILY / BIMBANK / SEDAD / BCIPAY / MASRVI / OTHER، أو null. */
+    val provider: String? = null,
+    val providerCandidates: List<String> = emptyList(),
+    /** INCOMING / OUTGOING، أو null حتى يختار المستخدم. */
+    val direction: String? = null,
+) {
+    val amountCents: Long? get() = PaymentStore.parseAmount(amount)
+    val localDate: LocalDate? get() = runCatching { LocalDate.parse(date.trim()) }.getOrNull()
+    val localTime: LocalTime? get() = time.trim().takeIf { it.isNotEmpty() }?.let { t -> runCatching { LocalTime.parse(t) }.getOrNull() }
+    private val timeValid: Boolean get() = time.isBlank() || localTime != null
+    val canSave: Boolean get() = name.isNotBlank() && amountCents != null && localDate != null && timeValid && direction != null
+}
+
 /** مشاركة كما وصلت من Android، قبل أي قرار. */
 data class ShareRequest(val action: ShareAction, val uris: List<Uri>)
 
@@ -68,11 +95,16 @@ data class IntakeUiState(
     val header: HeaderUi? = null,
     /** قراءة المبلغ والتاريخ من الإيصال (بعد الاسم). */
     val receipt: ReceiptUi? = null,
+    /** المراجعة قبل الحفظ (بعد انتهاء القراءتين). */
+    val draft: PaymentDraft? = null,
+    /** حُفظت الدفعة في «للإدخال» (والصورة نُقلت إلى الأرشيف). */
+    val saved: Boolean = false,
 )
 
 class IntakeViewModel(app: Application) : AndroidViewModel(app) {
 
     private val store = IntakeStore(app.filesDir, app.contentResolver)
+    private val payments = PaymentStore(File(app.filesDir, PaymentStore.DIR_NAME))
     private val _state = MutableStateFlow(IntakeUiState())
     val state: StateFlow<IntakeUiState> = _state.asStateFlow()
     private var job: Job? = null
@@ -103,6 +135,33 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
     fun close() {
         discardCurrent()
         _state.value = IntakeUiState(closed = true)
+    }
+
+    /** تعديل المراجعة (حقل نصي أو اختيار مرشّح). */
+    fun editDraft(change: (PaymentDraft) -> PaymentDraft) {
+        _state.update { s -> s.draft?.let { s.copy(draft = change(it)) } ?: s }
+    }
+
+    /** «حفظ»: الدفعة إلى «للإدخال»، وصورة الإيصال تُنقل إلى الأرشيف (لا تُحذف). ثم تُغلق الشاشة. */
+    fun save() {
+        val current = _state.value
+        val draft = current.draft?.takeIf { it.canSave } ?: return
+        val image = current.image ?: return
+        if (current.saved) return
+        _state.update { it.copy(saved = true) }
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    payments.save(draft.name, checkNotNull(draft.amountCents), checkNotNull(draft.localDate), draft.localTime, draft.provider, draft.direction, image.file)
+                }.isSuccess
+            }
+            if (ok) {
+                job?.cancel()
+                _state.value = IntakeUiState(closed = true, saved = true)
+            } else {
+                _state.update { it.copy(saved = false) }
+            }
+        }
     }
 
     private fun discardCurrent() {
@@ -137,7 +196,7 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
                         val header = withContext(Dispatchers.Default) { readHeader(result.image.file, bitmap) }
                         _state.update { if (it.image == result.image) it.copy(header = HeaderUi.Done(header)) else it }
                         val receipt = withContext(Dispatchers.Default) { readReceipt(bitmap, header) }
-                        _state.update { if (it.image == result.image) it.copy(receipt = ReceiptUi.Done(receipt)) else it }
+                        _state.update { if (it.image == result.image) it.copy(receipt = ReceiptUi.Done(receipt), draft = draftOf(header, receipt)) else it }
                     } finally {
                         bitmap?.recycle()
                     }
@@ -153,6 +212,26 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
         // الإغلاق ينتظر أي قراءة Tesseract جارية: خارج الخيط الرئيسي.
         Thread { headerEngine.close(); documentOcr.close() }.start()
     }
+
+    /** المراجعة الأولى: ما قُرئ بيقين فقط يملأ الحقول؛ «غير مؤكد» يعرض مرشّحيه. */
+    private fun draftOf(header: HeaderResult, receipt: ReceiptReading): PaymentDraft {
+        fun hhmm(t: LocalTime?) = t?.let { it.hour.toString().padStart(2, '0') + ":" + it.minute.toString().padStart(2, '0') } ?: ""
+        val amount = receipt.amount.value
+        val date = receipt.date.value
+        return PaymentDraft(
+            name = header.name.orEmpty(),
+            amount = amount?.let { amountText(it.cents) }.orEmpty(),
+            amountCandidates = receipt.amount.candidates.map { amountText(it.cents) },
+            date = date?.date?.toString().orEmpty(),
+            time = date?.let { hhmm(it.time) }.orEmpty(),
+            dateCandidates = receipt.date.candidates.map { it.date.toString() to hhmm(it.time) },
+            provider = receipt.provider.value?.name,
+            providerCandidates = receipt.provider.candidates.map { it.name },
+            direction = header.direction?.name,
+        )
+    }
+
+    private fun amountText(cents: Long) = (cents / 100).toString() + if (cents % 100 == 0L) "" else "." + (cents % 100).toString().padStart(2, '0')
 
     private fun decodeOrNull(file: File): Bitmap? = try {
         MlKitOcrAdapter.decodeFullImage(file)

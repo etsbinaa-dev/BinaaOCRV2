@@ -23,7 +23,7 @@
     <string name="intake_receiving">نستلم اللقطة…</string>
     <string name="intake_received_title">استُلمت اللقطة كاملة</string>
     <string name="intake_image_size">\u2066%1$d × %2$d\u2069</string>
-    <string name="intake_phase1_note">الحفظ يُضاف في تحديث قادم. لم تُحفظ أي عملية.</string>
+    <string name="intake_phase1_note">راجع القيم ثم اضغط «حفظ». ✕ يلغي دون حفظ.</string>
     <string name="intake_preview_description">لقطة الشاشة المشاركة</string>
     <string name="intake_done">تم</string>
 
@@ -49,6 +49,28 @@
     <string name="provider_bimbank">BIMBANK</string>
     <string name="provider_sedad">السداد</string>
     <string name="provider_bcipay">BCI Pay</string>
+    <string name="provider_masrvi">مصرفي</string>
+    <string name="provider_other">آخر</string>
+
+    <!-- للإدخال والأرشيف -->
+    <string name="home_tab_pending">للإدخال (%1$d)</string>
+    <string name="home_tab_archive">الأرشيف (%1$d)</string>
+    <string name="home_pending_empty">لا دفعات تنتظر الإدخال.</string>
+    <string name="home_archive_empty">الأرشيف فارغ.</string>
+    <string name="home_entered">تم</string>
+    <string name="home_restore">إرجاع إلى «للإدخال»</string>
+    <string name="home_image_loading">…</string>
+
+    <!-- المراجعة والحفظ -->
+    <string name="intake_save">حفظ</string>
+    <string name="receipt_name">الاسم</string>
+    <string name="receipt_amount_mru">المبلغ (MRU)</string>
+    <string name="receipt_date_format">التاريخ YYYY-MM-DD</string>
+    <string name="receipt_time_format">الوقت HH:MM</string>
+    <string name="receipt_direction">الاتجاه</string>
+    <string name="direction_in">وارد</string>
+    <string name="direction_out">صادر</string>
+    <string name="field_pick_one">غير مؤكد، اختر القيمة الصحيحة:</string>
 
     <string name="reject_multiple">شارك صورة واحدة فقط في كل مرة.</string>
     <string name="reject_no_image">لم تصل أي صورة. شارك لقطة الشاشة من WhatsApp.</string>

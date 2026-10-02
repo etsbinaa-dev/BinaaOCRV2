@@ -31,15 +31,35 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextDirection
 import com.binaa.ocr.R
+import com.binaa.ocr.core.archive.PaymentRecord
+import com.binaa.ocr.core.archive.PaymentStatus
+import com.binaa.ocr.intake.providerLabel
 import com.binaa.ocr.ui.theme.Binaa
 
 /**
- * Phase 1: لا أرشيف بعد، فالشاشة = الهوية + بطاقة الإرشاد (مفتوحة) + حالة فارغة.
+ * الهوية، ثم «للإدخال» (محفوظة ولم تُدخل في المحاسبة) و«الأرشيف» (ضغطت «تم»)، وبطاقة الإرشاد.
  * لا يوجد هنا أي زر لبدء قراءة إيصال أو لإضافة عملية: المدخل الوحيد هو المشاركة من WhatsApp.
  */
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    state: HomeState = HomeState(),
+    onTab: (HomeTab) -> Unit = {},
+    onEntered: (String) -> Unit = {},
+    onRestore: (String) -> Unit = {},
+    onOpen: (PaymentRecord) -> Unit = {},
+    onCloseImage: () -> Unit = {},
+) {
     val colors = Binaa.colors
     Column(
         Modifier
@@ -61,24 +81,122 @@ fun HomeScreen() {
             )
         }
         Spacer(Modifier.height(24.dp))
-        GuideCard()
-        Spacer(Modifier.height(32.dp))
-        Text(
-            stringResource(R.string.home_empty),
-            style = MaterialTheme.typography.bodyLarge,
-            color = colors.textMuted,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        val empty = state.pending.isEmpty() && state.archived.isEmpty()
+        GuideCard(startOpen = empty)
+        Spacer(Modifier.height(16.dp))
+        if (empty) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                stringResource(R.string.home_empty),
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.textMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = state.tab == HomeTab.PENDING,
+                    onClick = { onTab(HomeTab.PENDING) },
+                    label = { Text(stringResource(R.string.home_tab_pending, state.pending.size)) },
+                    modifier = Modifier.testTag("tab-pending"),
+                )
+                FilterChip(
+                    selected = state.tab == HomeTab.ARCHIVE,
+                    onClick = { onTab(HomeTab.ARCHIVE) },
+                    label = { Text(stringResource(R.string.home_tab_archive, state.archived.size)) },
+                    modifier = Modifier.testTag("tab-archive"),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            val list = if (state.tab == HomeTab.PENDING) state.pending else state.archived
+            if (list.isEmpty()) {
+                Text(
+                    stringResource(if (state.tab == HomeTab.PENDING) R.string.home_pending_empty else R.string.home_archive_empty),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.textMuted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (r in list) PaymentCard(r, onEntered, onRestore, onOpen)
+            }
+        }
         Spacer(Modifier.height(24.dp))
+    }
+
+    state.viewing?.let { (record, image) ->
+        AlertDialog(
+            onDismissRequest = onCloseImage,
+            confirmButton = { TextButton(onClick = onCloseImage) { Text(stringResource(R.string.intake_close), color = colors.text) } },
+            title = { Text(record.name) },
+            text = {
+                if (image != null) {
+                    Image(bitmap = image, contentDescription = stringResource(R.string.intake_preview_description), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp))
+                } else {
+                    Text(stringResource(R.string.home_image_loading), color = colors.textMuted)
+                }
+            },
+        )
     }
 }
 
-/** «كيف أقرأ إيصالًا؟» — مفتوحة مبدئيًا (لا عمليات بعد)، ويمكن طيّها. */
+/** دفعة واحدة: الاسم والاتجاه، المبلغ، التاريخ والتطبيق، ثم «تم» (أو «إرجاع» في الأرشيف). لمسة البطاقة تفتح صورة الإيصال. */
 @Composable
-private fun GuideCard() {
+private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore: (String) -> Unit, onOpen: (PaymentRecord) -> Unit) {
     val colors = Binaa.colors
-    var open by rememberSaveable { mutableStateOf(true) }
+    val ltr = MaterialTheme.typography.headlineSmall.copy(textDirection = TextDirection.Ltr)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(colors.card, MaterialTheme.shapes.large)
+            .border(1.dp, colors.divider, MaterialTheme.shapes.large)
+            .clickable { onOpen(r) }
+            .padding(14.dp)
+            .testTag("payment-${r.id}"),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(r.name, style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.weight(1f))
+            r.direction?.let { d ->
+                val incoming = d == "INCOMING"
+                Text(
+                    stringResource(if (incoming) R.string.direction_in else R.string.direction_out),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.onBrand,
+                    modifier = Modifier
+                        .background(if (incoming) colors.found else colors.uncertainBorder, CircleShape)
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                )
+            }
+        }
+        Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text)
+        Text(
+            "\u2066" + r.date + (r.time?.let { " $it" } ?: "") + "\u2069" + (r.provider?.let { "  ·  " + providerLabel(it) } ?: ""),
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textMuted,
+        )
+        Spacer(Modifier.height(6.dp))
+        if (r.status == PaymentStatus.PENDING) {
+            Button(
+                onClick = { onEntered(r.id) },
+                modifier = Modifier.fillMaxWidth().testTag("entered-${r.id}"),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.brand),
+            ) { Text(stringResource(R.string.home_entered), color = colors.onBrand) }
+        } else {
+            OutlinedButton(onClick = { onRestore(r.id) }, modifier = Modifier.fillMaxWidth().testTag("restore-${r.id}")) {
+                Text(stringResource(R.string.home_restore), color = colors.text)
+            }
+        }
+    }
+}
+
+/** «كيف أقرأ إيصالًا؟» — مفتوحة حين لا توجد دفعات، ويمكن طيّها. */
+@Composable
+private fun GuideCard(startOpen: Boolean) {
+    val colors = Binaa.colors
+    var open by rememberSaveable { mutableStateOf(startOpen) }
     Column(
         Modifier
             .fillMaxWidth()

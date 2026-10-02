@@ -18,6 +18,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.binaa.ocr.core.intake.ImageFormat
+import com.binaa.ocr.core.archive.PaymentStatus
+import com.binaa.ocr.core.archive.PaymentStore
 import com.binaa.ocr.core.intake.IntakePhase
 import com.binaa.ocr.core.receipt.Amount
 import com.binaa.ocr.core.receipt.FieldStatus
@@ -52,10 +54,12 @@ class IntakeHeaderInstrumentedTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val inserted = mutableListOf<Uri>()
     private val intakeDir get() = File(context.filesDir, IntakeStore.DIR_NAME)
+    private val paymentsDir get() = File(context.filesDir, PaymentStore.DIR_NAME)
 
     @Before
     fun clean() {
         intakeDir.deleteRecursively()
+        paymentsDir.deleteRecursively()
         IntakeViewModel.readHeaderOverride = null
         IntakeViewModel.readReceiptOverride = null
     }
@@ -68,6 +72,7 @@ class IntakeHeaderInstrumentedTest {
         waitUntil("intake activity closed") { currentIntake() == null }
         inserted.forEach { runCatching { context.contentResolver.delete(it, null, null) } }
         intakeDir.deleteRecursively()
+        paymentsDir.deleteRecursively()
     }
 
     @Test
@@ -161,6 +166,68 @@ class IntakeHeaderInstrumentedTest {
         assertEquals(FieldStatus.NOT_FOUND, r.date.status)
         assertEquals("the name is still read", NAME, (state.header as HeaderUi.Done).result.name)
         assertNotNull(currentIntake())
+    }
+
+    @Test
+    fun reviewedPayment_isSavedToPending_withItsImage_thenArchivedByDone() {
+        val bitmap = SyntheticHeader.viewer(NAME)
+        Canvas(bitmap).apply {
+            drawRect(40f, 300f, 1040f, 1500f, Paint().apply { color = Color.WHITE })
+            val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; textSize = 64f }
+            drawText("SEDAD BANK", 300f, 450f, ink)
+            drawText("3.150,00", 360f, 800f, ink)
+            drawText("12:05:09   03-08-2026", 200f, 1100f, ink)
+        }
+        val bytes = png(bitmap)
+        share(insert("sedad", bytes))
+        val draft = awaitState { it.draft != null }.draft!!
+        // ما قُرئ بيقين يملأ المراجعة.
+        assertEquals(NAME, draft.name)
+        assertEquals("3150", draft.amount)
+        assertEquals("2026-08-03", draft.date)
+        assertEquals("SEDAD", draft.provider)
+        assertEquals("INCOMING", draft.direction)
+        assertTrue(draft.canSave)
+
+        // تعديل من المستخدم قبل الحفظ.
+        val activity = currentIntake()!!
+        instrumentation.runOnMainSync { activity.viewModel.editDraft { it.copy(amount = "3 200") } }
+        instrumentation.runOnMainSync { activity.viewModel.save() }
+        waitUntil("intake closed after save") { currentIntake() == null }
+
+        val store = PaymentStore(paymentsDir)
+        val saved = store.pending().single()
+        assertEquals(NAME, saved.name)
+        assertEquals(320000L, saved.amountCents)
+        assertEquals("2026-08-03", saved.date)
+        assertEquals("12:05", saved.time)
+        assertEquals("SEDAD", saved.provider)
+        assertEquals("INCOMING", saved.direction)
+        // الصورة نُقلت بايتًا ببايت إلى الأرشيف، ولم يبقَ شيء في مجلد الاستلام.
+        assertArrayEquals(bytes, store.imageOf(saved).readBytes())
+        assertTrue(intakeDir.list().isNullOrEmpty())
+
+        // «تم» ⇒ الأرشيف.
+        store.markEntered(saved.id)
+        assertTrue(store.pending().isEmpty())
+        assertEquals(PaymentStatus.ARCHIVED, store.archived().single().status)
+    }
+
+    @Test
+    fun saveIsRefused_untilNameAmountDateAndDirectionAreComplete() {
+        IntakeViewModel.readHeaderOverride = { throw IllegalStateException("no header") }
+        share(insert("viewer", png(SyntheticHeader.viewer(NAME))))
+        val draft = awaitState { it.draft != null }.draft!!
+        assertFalse(draft.canSave)
+        val activity = currentIntake()!!
+        instrumentation.runOnMainSync { activity.viewModel.save() }
+        Thread.sleep(500)
+        assertNotNull("nothing saved, the screen stays", currentIntake())
+        assertTrue(PaymentStore(paymentsDir).list().isEmpty())
+        instrumentation.runOnMainSync {
+            activity.viewModel.editDraft { it.copy(name = "Zyxwq", amount = "100", date = "2026-08-03", direction = "OUTGOING") }
+        }
+        assertTrue(awaitState { it.draft?.canSave == true }.draft!!.canSave)
     }
 
     // ------------------------------------------------------------------ أدوات

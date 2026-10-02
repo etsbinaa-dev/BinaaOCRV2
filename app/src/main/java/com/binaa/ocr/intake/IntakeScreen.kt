@@ -15,6 +15,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -53,6 +61,8 @@ fun IntakeScreen(
     onClose: () -> Unit,
     onConfirmReplace: () -> Unit,
     onKeepCurrent: () -> Unit,
+    onEdit: ((PaymentDraft) -> PaymentDraft) -> Unit = {},
+    onSave: () -> Unit = {},
 ) {
     val colors = Binaa.colors
     Column(
@@ -72,7 +82,7 @@ fun IntakeScreen(
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             when (state.phase) {
                 IntakePhase.RECEIVING -> Receiving()
-                IntakePhase.RECEIVED -> Received(state)
+                IntakePhase.RECEIVED -> Received(state, onEdit)
                 IntakePhase.REJECTED -> Rejected(state.rejection ?: IntakeRejection.UNREADABLE)
                 IntakePhase.IDLE -> Unit
             }
@@ -84,13 +94,27 @@ fun IntakeScreen(
             state.header is HeaderUi.Done -> R.string.intake_done
             else -> R.string.intake_close
         }
-        OutlinedButton(
-            onClick = onClose,
-            modifier = Modifier.fillMaxWidth().height(56.dp).testTag("intake-bottom-action"),
-            shape = MaterialTheme.shapes.medium,
-            border = BorderStroke(1.dp, colors.divider),
-        ) {
-            Text(stringResource(label), style = MaterialTheme.typography.labelLarge, color = colors.text)
+        val draft = state.draft
+        if (draft != null) {
+            // «حفظ» إلى «للإدخال»، ويعمل فقط حين يكتمل الاسم والمبلغ والتاريخ والاتجاه. ✕ في الأعلى = إلغاء بلا حفظ.
+            Button(
+                onClick = onSave,
+                enabled = draft.canSave && !state.saved,
+                modifier = Modifier.fillMaxWidth().height(56.dp).testTag("intake-save"),
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(containerColor = colors.brand),
+            ) {
+                Text(stringResource(R.string.intake_save), style = MaterialTheme.typography.labelLarge, color = colors.onBrand)
+            }
+        } else {
+            OutlinedButton(
+                onClick = onClose,
+                modifier = Modifier.fillMaxWidth().height(56.dp).testTag("intake-bottom-action"),
+                shape = MaterialTheme.shapes.medium,
+                border = BorderStroke(1.dp, colors.divider),
+            ) {
+                Text(stringResource(label), style = MaterialTheme.typography.labelLarge, color = colors.text)
+            }
         }
         Spacer(Modifier.height(12.dp))
     }
@@ -124,10 +148,10 @@ private fun Receiving() {
 }
 
 @Composable
-private fun Received(state: IntakeUiState) {
+private fun Received(state: IntakeUiState, onEdit: ((PaymentDraft) -> PaymentDraft) -> Unit) {
     val colors = Binaa.colors
     val image = state.image ?: return
-    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
         // اللقطة كاملة كما وصلت (Fit: لا قص في العرض أيضًا).
         state.preview?.let { preview ->
             Image(
@@ -135,7 +159,7 @@ private fun Received(state: IntakeUiState) {
                 contentDescription = stringResource(R.string.intake_preview_description),
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
-                    .weight(1f)
+                    .height(if (state.draft != null) 220.dp else 360.dp)
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.large)
                     .border(1.dp, colors.divider, MaterialTheme.shapes.large)
@@ -154,8 +178,14 @@ private fun Received(state: IntakeUiState) {
             color = colors.textMuted,
         )
         Spacer(Modifier.height(12.dp))
-        state.header?.let { HeaderSection(it) }
-        state.receipt?.let { Spacer(Modifier.height(8.dp)); ReceiptSection(it) }
+        val draft = state.draft
+        val header = state.header
+        if (draft != null && header is HeaderUi.Done) {
+            ReviewForm(draft, header, onEdit)
+        } else {
+            state.header?.let { HeaderSection(it) }
+            state.receipt?.let { Spacer(Modifier.height(8.dp)); ReceiptSection(it) }
+        }
         Spacer(Modifier.height(8.dp))
         Text(
             stringResource(R.string.intake_phase1_note),
@@ -212,6 +242,106 @@ private fun HeaderSection(header: HeaderUi) {
         }
     }
 }
+
+/**
+ * المراجعة قبل الحفظ: كل حقل قابل للتعديل. ما قُرئ بيقين يملأ الحقل؛ «غير مؤكد» يعرض مرشّحيه للاختيار بلمسة؛
+ * «غير موجود» يبقى فارغًا ليكتبه المستخدم. لا شيء يُختار تلقائيًا.
+ */
+@Composable
+private fun ReviewForm(draft: PaymentDraft, header: HeaderUi.Done, onEdit: ((PaymentDraft) -> PaymentDraft) -> Unit) {
+    val colors = Binaa.colors
+    val ltr = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Ltr)
+    val nameHint: Int? = when (header.result.reason) {
+        NameReason.NAME_UNREADABLE -> R.string.header_reason_unreadable
+        NameReason.SENT_BY_YOU -> R.string.header_reason_sent_by_you
+        NameReason.HEADER_NOT_DETECTED -> R.string.header_reason_not_detected
+        null -> null
+    }
+    Column(Modifier.fillMaxWidth().testTag("intake-review"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        OutlinedTextField(
+            value = draft.name,
+            onValueChange = { v -> onEdit { it.copy(name = v) } },
+            label = { Text(stringResource(R.string.receipt_name)) },
+            supportingText = if (nameHint != null) { { Text(stringResource(nameHint)) } } else null,
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().testTag("review-name"),
+        )
+        OutlinedTextField(
+            value = draft.amount,
+            onValueChange = { v -> onEdit { it.copy(amount = v) } },
+            label = { Text(stringResource(R.string.receipt_amount_mru)) },
+            textStyle = ltr,
+            isError = draft.amount.isNotBlank() && draft.amountCents == null,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().testTag("review-amount"),
+        )
+        Candidates(draft.amountCandidates, { "\u2066$it MRU\u2069" }) { c -> onEdit { it.copy(amount = c) } }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = draft.date,
+                onValueChange = { v -> onEdit { it.copy(date = v) } },
+                label = { Text(stringResource(R.string.receipt_date_format)) },
+                textStyle = ltr,
+                isError = draft.date.isNotBlank() && draft.localDate == null,
+                singleLine = true,
+                modifier = Modifier.weight(0.62f).testTag("review-date"),
+            )
+            OutlinedTextField(
+                value = draft.time,
+                onValueChange = { v -> onEdit { it.copy(time = v) } },
+                label = { Text(stringResource(R.string.receipt_time_format)) },
+                textStyle = ltr,
+                isError = draft.time.isNotBlank() && draft.localTime == null,
+                singleLine = true,
+                modifier = Modifier.weight(0.38f).testTag("review-time"),
+            )
+        }
+        Candidates(draft.dateCandidates, { "\u2066${it.first} ${it.second}\u2069" }) { c -> onEdit { it.copy(date = c.first, time = c.second) } }
+
+        Text(stringResource(R.string.receipt_provider), style = MaterialTheme.typography.labelLarge, color = colors.textMuted)
+        if (draft.providerCandidates.isNotEmpty() && draft.provider == null) {
+            Text(stringResource(R.string.field_uncertain, draft.providerCandidates.map { providerLabel(it) }.joinToString(" / ")), color = colors.uncertainBorder)
+        }
+        Chips(PROVIDERS, draft.provider, { providerLabel(it) }) { p -> onEdit { it.copy(provider = if (it.provider == p) null else p) } }
+
+        Text(stringResource(R.string.receipt_direction), style = MaterialTheme.typography.labelLarge, color = colors.textMuted)
+        Chips(listOf("INCOMING", "OUTGOING"), draft.direction, { stringResource(if (it == "INCOMING") R.string.direction_in else R.string.direction_out) }) { d ->
+            onEdit { it.copy(direction = d) }
+        }
+    }
+}
+
+private val PROVIDERS = listOf("BANKILY", "MASRVI", "SEDAD", "BIMBANK", "BCIPAY", "OTHER")
+
+@Composable
+private fun <T> Candidates(candidates: List<T>, show: (T) -> String, onPick: (T) -> Unit) {
+    if (candidates.isEmpty()) return
+    val colors = Binaa.colors
+    Text(stringResource(R.string.field_pick_one), style = MaterialTheme.typography.bodyMedium, color = colors.uncertainBorder)
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (c in candidates) FilterChip(selected = false, onClick = { onPick(c) }, label = { Text(show(c)) })
+    }
+}
+
+@Composable
+private fun Chips(options: List<String>, selected: String?, label: @Composable (String) -> String, onPick: (String) -> Unit) {
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (o in options) FilterChip(selected = o == selected, onClick = { onPick(o) }, label = { Text(label(o)) }, modifier = Modifier.testTag("chip-$o"))
+    }
+}
+
+@Composable
+fun providerLabel(p: String): String = stringResource(
+    when (p) {
+        "BANKILY" -> R.string.provider_bankily
+        "MASRVI" -> R.string.provider_masrvi
+        "SEDAD" -> R.string.provider_sedad
+        "BIMBANK" -> R.string.provider_bimbank
+        "BCIPAY" -> R.string.provider_bcipay
+        else -> R.string.provider_other
+    },
+)
 
 /** المبلغ والتاريخ والتطبيق: القيمة (FOUND)، أو «غير مؤكد» مع المرشّحين، أو «غير موجود» مع السبب. لا اختيار تلقائي. */
 @Composable
