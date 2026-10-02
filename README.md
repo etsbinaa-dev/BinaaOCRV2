@@ -55,7 +55,7 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 - AAR الـTesseract من JitPack (غير منشور على Maven Central)، لمجموعته فقط (`exclusiveContent`)، ومثبّت بـSHA-256 في
   `gradle/tesseract4android.sha256` (`verifyTesseractAar` قبل كل بناء).
 - لا سجلات للصورة ولا للنص؛ `toString()` لكل الأدلة والنتائج لا يُظهر النص.
-- موصول بالاستلام (Step 5c): بعد حفظ اللقطة بايتًا ببايت يقرأ `IntakeViewModel` الاسم بـ`HeaderEngine` (فك ترميز في الذاكرة
+- موصول بالاستلام (Step 5c)، ثم يقرأ `ReceiptReader` (`:core`) المبلغ والتاريخ لبنكيلي وBIMBANK والسداد من نص ML Kit تحت رأس WhatsApp: بعد حفظ اللقطة بايتًا ببايت يقرأ `IntakeViewModel` الاسم بـ`HeaderEngine` (فك ترميز في الذاكرة
   فقط) ويعرض النتيجة: الاسم (FOUND) أو السبب (NOT_FOUND). أي فشل ⇒ NOT_FOUND بلا استثناء. لا حفظ ولا أرشيف بعد.
 
 ## مفتاح التوقيع V2 (مرة واحدة فقط)

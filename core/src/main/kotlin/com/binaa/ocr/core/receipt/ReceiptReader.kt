@@ -1,0 +1,208 @@
+package com.binaa.ocr.core.receipt
+
+import com.binaa.ocr.core.ocr.OcrDocument
+import com.binaa.ocr.core.ocr.PixelBox
+import java.time.LocalDate
+import java.time.LocalTime
+
+/** تطبيقات الدفع المدعومة الآن (كل واحد بصيغه المعروفة فقط). */
+enum class Provider { BANKILY, BIMBANK, SEDAD }
+
+enum class FieldStatus { FOUND, UNCERTAIN, NOT_FOUND }
+
+/** لماذا لم يُعطَ الحقل قيمة مؤكدة. */
+enum class FieldReason {
+    /** لا تطبيق دفع معروف في اللقطة: لا تُقرأ صيغ لا نعرفها. */
+    UNKNOWN_PROVIDER,
+
+    /** علامات أكثر من تطبيق في اللقطة نفسها. */
+    CONFLICTING_PROVIDERS,
+
+    /** أكثر من قيمة مختلفة في الإيصال: لا اختيار تلقائي. */
+    CONFLICTING_VALUES,
+
+    /** لا قيمة بصيغة هذا التطبيق. */
+    NO_VALUE,
+}
+
+/**
+ * حقل واحد من الإيصال: FOUND بقيمة واحدة؛ UNCERTAIN بلا قيمة ومع المرشّحين ليختار المستخدم؛ NOT_FOUND بلا قيمة.
+ * لا اختيار تلقائي بين مرشّحين أبدًا.
+ */
+data class ReceiptField<T>(val status: FieldStatus, val value: T?, val candidates: List<T>, val reason: FieldReason?) {
+    init {
+        when (status) {
+            FieldStatus.FOUND -> require(value != null && candidates.isEmpty() && reason == null) { "FOUND carries one value" }
+            FieldStatus.UNCERTAIN -> require(value == null && reason != null) { "UNCERTAIN carries no value" }
+            FieldStatus.NOT_FOUND -> require(value == null && candidates.isEmpty() && reason != null) { "NOT_FOUND carries nothing" }
+        }
+    }
+
+    companion object {
+        fun <T> found(value: T) = ReceiptField(FieldStatus.FOUND, value, emptyList(), null)
+        fun <T> notFound(reason: FieldReason) = ReceiptField<T>(FieldStatus.NOT_FOUND, null, emptyList(), reason)
+
+        /** قيمة واحدة ⇒ FOUND؛ عدة قيم مختلفة ⇒ UNCERTAIN بها كلها؛ لا شيء ⇒ NOT_FOUND. */
+        fun <T> of(values: List<T>): ReceiptField<T> {
+            val distinct = values.distinct()
+            return when (distinct.size) {
+                0 -> notFound(FieldReason.NO_VALUE)
+                1 -> found(distinct.single())
+                else -> ReceiptField(FieldStatus.UNCERTAIN, null, distinct, FieldReason.CONFLICTING_VALUES)
+            }
+        }
+    }
+}
+
+/** المبلغ بالأوقية الجديدة (MRU)، بالسنتيم لتفادي الكسور العشرية. [canonical] مثل "6200.00". */
+data class Amount(val cents: Long) {
+    val canonical: String get() = "${cents / 100}.${(cents % 100).toString().padStart(2, '0')}"
+    override fun toString() = canonical
+}
+
+/** تاريخ الدفع، والوقت إن وُجد في السطر نفسه. */
+data class PaymentDate(val date: LocalDate, val time: LocalTime?)
+
+data class ReceiptReading(
+    val provider: ReceiptField<Provider>,
+    val amount: ReceiptField<Amount>,
+    val date: ReceiptField<PaymentDate>,
+)
+
+/**
+ * المبلغ والتاريخ من نص إيصال الدفع (ML Kit على اللقطة كاملة)، لثلاثة تطبيقات بصيغها المعروفة فقط:
+ *
+ * - **بنكيلي**: يُعرَف بمعرّف المعاملة (19 رقمًا) الذي يحمل تاريخ ووقت العملية YYMMDDhhmm بعد أول رقمين، ويطابق
+ *   سطر «التاريخ والوقت» YY-MM-DD hh:mm:ss. المطابقة نفسها تؤكد ترتيب التاريخ. المبلغ = الرقم الملاصق لـ«MRU»
+ *   (في سطره، أو آخر رقم من جهة اليسار في السطر السابق إن نزلت MRU وحدها إلى سطر جديد).
+ * - **BIMBANK** و**السداد**: يُعرفان بشعارهما المكتوب لاتينيًا. المبلغ بصيغة 74.650,00؛ التاريخ DD-MM-YYYY.
+ *
+ * لا يُقرأ شيء من رأس WhatsApp (فيه تاريخ الرسالة) ولا من شريط الرد أسفل الشاشة: فقط ما بين [bodyTop] و[bodyBottom].
+ * رقم من 8 أرقام أو أكثر بلا فواصل (هاتف، حساب، معرّف) لا يكون مبلغًا أبدًا.
+ */
+object ReceiptReader {
+
+    fun read(document: OcrDocument, bodyTop: Int, bodyBottom: Int = (document.image.height * 0.92).toInt()): ReceiptReading {
+        val words = document.words.mapNotNull { w -> w.box?.let { Token(w.text.trim(), it) } }
+            .filter { it.text.isNotEmpty() && it.box.top >= bodyTop && it.box.bottom <= bodyBottom }
+        val rows = rows(words)
+
+        val bankilyDates = bankilyDates(words, rows)
+        val found = buildList {
+            if (bankilyDates.isNotEmpty()) add(Provider.BANKILY)
+            if (words.any { BIMBANK.containsMatchIn(it.text) }) add(Provider.BIMBANK)
+            if (words.any { SEDAD.matches(it.text) }) add(Provider.SEDAD)
+        }
+        return when (found.size) {
+            0 -> unread(ReceiptField.notFound(FieldReason.UNKNOWN_PROVIDER), FieldReason.UNKNOWN_PROVIDER)
+            1 -> when (found.single()) {
+                Provider.BANKILY -> ReceiptReading(ReceiptField.found(Provider.BANKILY), ReceiptField.of(bankilyAmounts(rows)), ReceiptField.of(bankilyDates))
+                Provider.BIMBANK -> european(Provider.BIMBANK, words, rows)
+                Provider.SEDAD -> european(Provider.SEDAD, words, rows)
+            }
+            else -> unread(ReceiptField(FieldStatus.UNCERTAIN, null, found, FieldReason.CONFLICTING_PROVIDERS), FieldReason.CONFLICTING_PROVIDERS)
+        }
+    }
+
+    private fun unread(provider: ReceiptField<Provider>, reason: FieldReason) =
+        ReceiptReading(provider, ReceiptField.notFound(reason), ReceiptField.notFound(reason))
+
+    private class Token(val text: String, val box: PixelBox) {
+        val cy get() = (box.top + box.bottom) / 2
+    }
+
+    /** صفوف بصرية: كلمات يتقاطع مداها العمودي مع منتصف الصف، مرتّبة من اليسار. */
+    private fun rows(words: List<Token>): List<List<Token>> {
+        val out = mutableListOf<MutableList<Token>>()
+        for (w in words.sortedBy { it.cy }) {
+            val row = out.lastOrNull()
+            if (row != null && w.cy in row.minOf { it.box.top }..row.maxOf { it.box.bottom }) row += w else out += mutableListOf(w)
+        }
+        return out.map { r -> r.sortedBy { it.box.left } }
+    }
+
+    private fun timeIn(row: List<Token>): LocalTime? =
+        row.mapNotNull { TIME.matchEntire(it.text) }.firstNotNullOfOrNull { m ->
+            runCatching { LocalTime.of(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].ifEmpty { "0" }.toInt()) }.getOrNull()
+        }
+
+    // ------------------------------------------------------------------ بنكيلي
+
+    /** تواريخ بنكيلي التي يؤكدها معرّف المعاملة: YY-MM-DD hh:mm في السطر = الأرقام 3–12 من المعرّف. */
+    private fun bankilyDates(words: List<Token>, rows: List<List<Token>>): List<PaymentDate> {
+        val ids = words.filter { BANKILY_ID.matches(it.text) }.map { it.text.substring(2, 12) }.toSet()
+        if (ids.isEmpty()) return emptyList()
+        return rows.flatMap { row ->
+            val time = timeIn(row) ?: return@flatMap emptyList()
+            row.mapNotNull { SHORT_DATE.matchEntire(it.text) }.mapNotNull { m ->
+                val (yy, mm, dd) = m.destructured
+                val stamp = yy + mm + dd + "%02d%02d".format(time.hour, time.minute)
+                if (stamp !in ids) return@mapNotNull null
+                runCatching { PaymentDate(LocalDate.of(2000 + yy.toInt(), mm.toInt(), dd.toInt()), time) }.getOrNull()
+            }
+        }
+    }
+
+    /**
+     * مبالغ بنكيلي: الرقم الملاصق لـ«MRU». نافذة النجاح تكتب «المستفيد: <الهاتف> المبلغ المرسل: <المبلغ> MRU»، فالمبالغ
+     * في سطر فيه رقم هاتف المستفيد (8 أرقام) تُقدَّم على ما سواها (مثل بقايا الشاشة خلف النافذة).
+     */
+    private fun bankilyAmounts(rows: List<List<Token>>): List<Amount> {
+        val withPhone = mutableListOf<Amount>()
+        val others = mutableListOf<Amount>()
+        rows.forEachIndexed { r, row ->
+            fun collect(source: List<Token>, amounts: List<Amount>) =
+                (if (source.any { PHONE.matches(it.text) }) withPhone else others).addAll(amounts)
+            row.forEachIndexed { i, token ->
+                if (token.text.equals("MRU", ignoreCase = true)) {
+                    val beside = listOfNotNull(row.getOrNull(i - 1), row.getOrNull(i + 1)).mapNotNull { amountOf(it.text) }
+                    if (beside.isNotEmpty()) collect(row, beside)
+                    // MRU وحدها في سطرها: نزلت من السطر السابق، فالمبلغ أول رقم من جهة اليسار (نهاية السطر العربي).
+                    else if (row.size == 1) rows.getOrNull(r - 1)?.let { prev -> collect(prev, listOfNotNull(prev.firstNotNullOfOrNull { amountOf(it.text) })) }
+                }
+                MRU_JOINED.matchEntire(token.text)?.let { m -> collect(row, listOfNotNull(amountOf(m.groupValues[1].ifEmpty { m.groupValues[2] }))) }
+            }
+        }
+        return withPhone.ifEmpty { others }
+    }
+
+    // ------------------------------------------------------------------ BIMBANK والسداد
+
+    private fun european(provider: Provider, words: List<Token>, rows: List<List<Token>>): ReceiptReading {
+        val amounts = words.mapNotNull { EUROPEAN_AMOUNT.matchEntire(it.text) }.map { m ->
+            Amount(m.groupValues[1].replace(".", "").toLong() * 100 + m.groupValues[2].toLong())
+        }
+        val dates = rows.flatMap { row ->
+            row.mapNotNull { LONG_DATE.matchEntire(it.text) }.mapNotNull { m ->
+                val (dd, mm, yyyy) = m.destructured
+                runCatching { PaymentDate(LocalDate.of(yyyy.toInt(), mm.toInt(), dd.toInt()), timeIn(row)) }.getOrNull()
+            }
+        }
+        return ReceiptReading(ReceiptField.found(provider), ReceiptField.of(amounts), ReceiptField.of(dates))
+    }
+
+    /** مبلغ بنكيلي: 6200 أو 6.200 أو 6,200 أو 6200.00، وليس رقمًا طويلًا بلا فواصل (هاتف أو معرّف). */
+    private fun amountOf(text: String): Amount? {
+        PLAIN_AMOUNT.matchEntire(text)?.let { m -> return Amount(m.groupValues[1].toLong() * 100 + m.groupValues[2].ifEmpty { "0" }.toLong()) }
+        GROUPED_AMOUNT.matchEntire(text)?.let { m -> return Amount(m.groupValues[1].replace(Regex("[.,]"), "").toLong() * 100) }
+        return null
+    }
+
+    private val BANKILY_ID = Regex("""\d{19}""")
+    private val PHONE = Regex("""[234]\d{7}""")
+    private val SHORT_DATE = Regex("""(\d{2})-(\d{2})-(\d{2})""")
+    private val LONG_DATE = Regex("""(\d{2})-(\d{2})-(\d{4})""")
+    private val TIME = Regex("""(\d{2}):(\d{2})(?::(\d{2}))?""")
+    private val BIMBANK = Regex("""(?i)bimbank|^BIM-""")
+    private val SEDAD = Regex("""(?i)sedad""")
+    private val EUROPEAN_AMOUNT = Regex("""(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})""")
+
+    /** 1 إلى 7 أرقام، وكسر بنقطة ورقمين اختياري. */
+    private val PLAIN_AMOUNT = Regex("""([1-9]\d{0,6})(?:\.(\d{2}))?""")
+
+    /** فاصل آلاف (نقطة أو فاصلة) قبل كل 3 أرقام. */
+    private val GROUPED_AMOUNT = Regex("""([1-9]\d{0,2}(?:[.,]\d{3})+)""")
+
+    /** «MRU6200» أو «6200MRU» ملتصقين في كلمة واحدة. */
+    private val MRU_JOINED = Regex("""(?i)MRU(\d[\d.,]*)|(\d[\d.,]*)MRU""")
+}

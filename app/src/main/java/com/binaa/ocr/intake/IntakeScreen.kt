@@ -36,6 +36,12 @@ import androidx.compose.ui.unit.dp
 import com.binaa.ocr.R
 import com.binaa.ocr.core.intake.IntakePhase
 import com.binaa.ocr.core.intake.IntakeRejection
+import com.binaa.ocr.core.receipt.Amount
+import com.binaa.ocr.core.receipt.FieldReason
+import com.binaa.ocr.core.receipt.FieldStatus
+import com.binaa.ocr.core.receipt.PaymentDate
+import com.binaa.ocr.core.receipt.Provider
+import com.binaa.ocr.core.receipt.ReceiptField
 import com.binaa.ocr.header.NameReason
 import com.binaa.ocr.header.NameStatus
 import com.binaa.ocr.ui.theme.Binaa
@@ -73,7 +79,7 @@ fun IntakeScreen(
 
         // الإجراء الوحيد في أسفل الشاشة (منطقة الإبهام).
         val label = when {
-            state.phase == IntakePhase.RECEIVING || state.header == HeaderUi.Reading -> R.string.intake_cancel
+            state.phase == IntakePhase.RECEIVING || state.header == HeaderUi.Reading || state.receipt == ReceiptUi.Reading -> R.string.intake_cancel
             state.header is HeaderUi.Done -> R.string.intake_done
             else -> R.string.intake_close
         }
@@ -148,6 +154,7 @@ private fun Received(state: IntakeUiState) {
         )
         Spacer(Modifier.height(12.dp))
         state.header?.let { HeaderSection(it) }
+        state.receipt?.let { Spacer(Modifier.height(8.dp)); ReceiptSection(it) }
         Spacer(Modifier.height(8.dp))
         Text(
             stringResource(R.string.intake_phase1_note),
@@ -195,6 +202,72 @@ private fun HeaderSection(header: HeaderUi) {
         }
     }
 }
+
+/** المبلغ والتاريخ والتطبيق: القيمة (FOUND)، أو «غير مؤكد» مع المرشّحين، أو «غير موجود» مع السبب. لا اختيار تلقائي. */
+@Composable
+private fun ReceiptSection(receipt: ReceiptUi) {
+    val colors = Binaa.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .border(1.dp, colors.notFoundBorder, MaterialTheme.shapes.medium)
+            .padding(12.dp)
+            .testTag("intake-receipt"),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        when (receipt) {
+            ReceiptUi.Reading -> {
+                Text(stringResource(R.string.receipt_reading), style = MaterialTheme.typography.bodyMedium, color = colors.text)
+                LinearProgressIndicator(Modifier.fillMaxWidth().clip(CircleShape), color = colors.brand, trackColor = colors.divider)
+            }
+            is ReceiptUi.Done -> {
+                val r = receipt.reading
+                FieldRow(R.string.receipt_amount, r.amount, "intake-amount") { formatAmount(it) }
+                FieldRow(R.string.receipt_date, r.date, "intake-date") { formatDate(it) }
+                FieldRow(R.string.receipt_provider, r.provider, "intake-provider") { providerName(it) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun <T> FieldRow(label: Int, field: ReceiptField<T>, tag: String, show: @Composable (T) -> String) {
+    val colors = Binaa.colors
+    val value = field.value
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(label), style = MaterialTheme.typography.labelLarge, color = colors.textMuted, modifier = Modifier.weight(0.35f))
+        val text = when (field.status) {
+            FieldStatus.FOUND -> if (value != null) show(value) else ""
+            FieldStatus.UNCERTAIN -> stringResource(R.string.field_uncertain, field.candidates.map { show(it) }.joinToString(" / "))
+            FieldStatus.NOT_FOUND -> stringResource(if (field.reason == FieldReason.UNKNOWN_PROVIDER) R.string.field_unsupported else R.string.field_not_found)
+        }
+        val color = when (field.status) {
+            FieldStatus.FOUND -> colors.text
+            FieldStatus.UNCERTAIN -> colors.uncertainBorder
+            FieldStatus.NOT_FOUND -> colors.textMuted
+        }
+        Text(text, style = MaterialTheme.typography.titleMedium, color = color, modifier = Modifier.weight(0.65f).testTag(tag))
+    }
+}
+
+/** 6200 MRU، أو 6200.50 MRU إن كان فيه كسر. اتجاه LTR داخل النص العربي. */
+private fun formatAmount(a: Amount): String {
+    val units = a.cents / 100
+    val cents = a.cents % 100
+    return "\u2066" + (if (cents == 0L) "$units" else a.canonical) + " MRU\u2069"
+}
+
+private fun formatDate(d: PaymentDate): String =
+    "\u2066" + d.date.toString() + (d.time?.let { " " + it.hour.toString().padStart(2, '0') + ":" + it.minute.toString().padStart(2, '0') } ?: "") + "\u2069"
+
+@Composable
+private fun providerName(p: Provider): String = stringResource(
+    when (p) {
+        Provider.BANKILY -> R.string.provider_bankily
+        Provider.BIMBANK -> R.string.provider_bimbank
+        Provider.SEDAD -> R.string.provider_sedad
+    },
+)
 
 @Composable
 private fun Rejected(reason: IntakeRejection) {

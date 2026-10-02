@@ -3,6 +3,7 @@ package com.binaa.ocr.intake
 import android.app.Application
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.graphics.Bitmap
 import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -15,6 +16,10 @@ import com.binaa.ocr.core.intake.IntakeSession
 import com.binaa.ocr.core.intake.NewShareDecision
 import com.binaa.ocr.core.intake.ShareAction
 import com.binaa.ocr.core.intake.ShareCheck
+import com.binaa.ocr.core.receipt.FieldReason
+import com.binaa.ocr.core.receipt.ReceiptField
+import com.binaa.ocr.core.receipt.ReceiptReader
+import com.binaa.ocr.core.receipt.ReceiptReading
 import com.binaa.ocr.header.HeaderEngine
 import com.binaa.ocr.header.HeaderResult
 import com.binaa.ocr.header.NameReason
@@ -39,6 +44,13 @@ sealed interface HeaderUi {
     data class Done(val result: HeaderResult) : HeaderUi
 }
 
+/** المبلغ والتاريخ من الإيصال نفسه (بعد الاسم). */
+sealed interface ReceiptUi {
+    data object Reading : ReceiptUi
+
+    data class Done(val reading: ReceiptReading) : ReceiptUi
+}
+
 /** مشاركة كما وصلت من Android، قبل أي قرار. */
 data class ShareRequest(val action: ShareAction, val uris: List<Uri>)
 
@@ -54,6 +66,8 @@ data class IntakeUiState(
     val closed: Boolean = false,
     /** قراءة الاسم من رأس WhatsApp (بعد الاستلام فقط). */
     val header: HeaderUi? = null,
+    /** قراءة المبلغ والتاريخ من الإيصال (بعد الاسم). */
+    val receipt: ReceiptUi? = null,
 )
 
 class IntakeViewModel(app: Application) : AndroidViewModel(app) {
@@ -64,6 +78,8 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
     private var job: Job? = null
     /** محلي بالكامل (Tesseract + ML Kit). التهيئة الثقيلة (النماذج) عند أول قراءة فقط. */
     private val headerEngine = HeaderEngine(app)
+    /** ML Kit على اللقطة كاملة (MlKitOcrAdapter كما هو)، محلي بالكامل. */
+    private val documentOcr = MlKitOcrAdapter()
 
     /** كل مشاركة تصل هنا (أول فتح أو onNewIntent). */
     fun onShare(request: ShareRequest) {
@@ -112,10 +128,19 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 is IntakeResult.Stored -> {
                     val preview = withContext(Dispatchers.IO) { decodePreview(result.image) }
-                    _state.update { it.copy(phase = IntakePhase.RECEIVED, image = result.image, preview = preview, header = HeaderUi.Reading) }
-                    // التحليل يبدأ تلقائيًا: اسم الطرف الآخر من رأس WhatsApp فقط (قراءة الإيصال في مراحل تالية).
-                    val header = withContext(Dispatchers.Default) { readHeader(result.image.file) }
-                    _state.update { if (it.image == result.image) it.copy(header = HeaderUi.Done(header)) else it }
+                    _state.update {
+                        it.copy(phase = IntakePhase.RECEIVED, image = result.image, preview = preview, header = HeaderUi.Reading, receipt = ReceiptUi.Reading)
+                    }
+                    // التحليل يبدأ تلقائيًا: الاسم من رأس WhatsApp أولًا، ثم المبلغ والتاريخ من الإيصال. فك ترميز واحد في الذاكرة.
+                    val bitmap = withContext(Dispatchers.IO) { decodeOrNull(result.image.file) }
+                    try {
+                        val header = withContext(Dispatchers.Default) { readHeader(result.image.file, bitmap) }
+                        _state.update { if (it.image == result.image) it.copy(header = HeaderUi.Done(header)) else it }
+                        val receipt = withContext(Dispatchers.Default) { readReceipt(bitmap, header) }
+                        _state.update { if (it.image == result.image) it.copy(receipt = ReceiptUi.Done(receipt)) else it }
+                    } finally {
+                        bitmap?.recycle()
+                    }
                 }
             }
         }
@@ -126,18 +151,39 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
         // الـViewModel ينتهي دون إغلاق صريح (مثلًا أُزيلت المهمة): لا نترك الصورة.
         if (!_state.value.closed) store.delete(_state.value.image)
         // الإغلاق ينتظر أي قراءة Tesseract جارية: خارج الخيط الرئيسي.
-        Thread { headerEngine.close() }.start()
+        Thread { headerEngine.close(); documentOcr.close() }.start()
+    }
+
+    private fun decodeOrNull(file: File): Bitmap? = try {
+        MlKitOcrAdapter.decodeFullImage(file)
+    } catch (e: Exception) {
+        null
+    } catch (e: OutOfMemoryError) {
+        null
+    }
+
+    /**
+     * المبلغ والتاريخ: ML Kit على اللقطة كاملة ثم [ReceiptReader]، تحت رأس WhatsApp فقط (تاريخ الرسالة فيه لا يُقرأ).
+     * أي فشل ⇒ NOT_FOUND، بلا استثناء ولا سجلات.
+     */
+    private fun readReceipt(bitmap: Bitmap?, header: HeaderResult): ReceiptReading = try {
+        readReceiptOverride?.invoke() ?: run {
+            checkNotNull(bitmap)
+            val bodyTop = header.layout?.headerBar?.b ?: (bitmap.height * HEADER_FALLBACK).toInt()
+            ReceiptReader.read(documentOcr.read(bitmap), bodyTop)
+        }
+    } catch (e: Exception) {
+        RECEIPT_NOT_READ
+    } catch (e: OutOfMemoryError) {
+        RECEIPT_NOT_READ
     }
 
     /**
      * Header Engine على اللقطة المحفوظة كاملة كما هي (فك ترميز في الذاكرة فقط، بلا قص ولا تصغير).
      * أي فشل (فك الترميز، الذاكرة، المحرك) ⇒ NOT_FOUND، ولا استثناء يصل إلى الواجهة. لا سجلات.
      */
-    private fun readHeader(file: File): HeaderResult = try {
-        readHeaderOverride?.invoke(file) ?: run {
-            val bitmap = MlKitOcrAdapter.decodeFullImage(file)
-            try { headerEngine.read(bitmap).result } finally { bitmap.recycle() }
-        }
+    private fun readHeader(file: File, bitmap: Bitmap?): HeaderResult = try {
+        readHeaderOverride?.invoke(file) ?: headerEngine.read(checkNotNull(bitmap)).result
     } catch (e: Exception) {
         NOT_READ
     } catch (e: OutOfMemoryError) {
@@ -161,5 +207,19 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
         @VisibleForTesting
         @Volatile
         var readHeaderOverride: ((File) -> HeaderResult)? = null
+
+        /** للاختبارات فقط: بديل لقراءة الإيصال (مثلًا قراءة ترمي استثناءً). */
+        @VisibleForTesting
+        @Volatile
+        var readReceiptOverride: (() -> ReceiptReading)? = null
+
+        /** بلا رأس مكتشف: يُتجاهَل أعلى اللقطة بارتفاع شريط WhatsApp تقريبًا. */
+        private const val HEADER_FALLBACK = 0.09
+
+        private val RECEIPT_NOT_READ = ReceiptReading(
+            ReceiptField.notFound(FieldReason.NO_VALUE),
+            ReceiptField.notFound(FieldReason.NO_VALUE),
+            ReceiptField.notFound(FieldReason.NO_VALUE),
+        )
     }
 }

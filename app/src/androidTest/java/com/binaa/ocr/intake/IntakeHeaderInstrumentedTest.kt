@@ -19,6 +19,12 @@ import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
 import androidx.test.runner.lifecycle.Stage
 import com.binaa.ocr.core.intake.ImageFormat
 import com.binaa.ocr.core.intake.IntakePhase
+import com.binaa.ocr.core.receipt.Amount
+import com.binaa.ocr.core.receipt.FieldStatus
+import com.binaa.ocr.core.receipt.Provider
+import com.binaa.ocr.core.receipt.ReceiptField
+import java.time.LocalDate
+import java.time.LocalTime
 import com.binaa.ocr.header.NameReason
 import com.binaa.ocr.header.NameStatus
 import com.binaa.ocr.header.SyntheticHeader
@@ -51,11 +57,13 @@ class IntakeHeaderInstrumentedTest {
     fun clean() {
         intakeDir.deleteRecursively()
         IntakeViewModel.readHeaderOverride = null
+        IntakeViewModel.readReceiptOverride = null
     }
 
     @After
     fun tearDown() {
         IntakeViewModel.readHeaderOverride = null
+        IntakeViewModel.readReceiptOverride = null
         currentIntake()?.let { activity -> instrumentation.runOnMainSync { activity.viewModel.close() } }
         waitUntil("intake activity closed") { currentIntake() == null }
         inserted.forEach { runCatching { context.contentResolver.delete(it, null, null) } }
@@ -121,6 +129,38 @@ class IntakeHeaderInstrumentedTest {
         // الشاشة باقية والصورة محفوظة، والإغلاق يعمل.
         assertNotNull(currentIntake())
         assertTrue(state.image!!.file.exists())
+    }
+
+    @Test
+    fun sharedSedadScreenshot_amountAndDateAreReadFromTheReceipt() {
+        // رأس Image Viewer وتحته إيصال بصيغة السداد (أرقام وهمية)، يقرؤه ML Kit الحقيقي.
+        val bitmap = SyntheticHeader.viewer(NAME)
+        Canvas(bitmap).apply {
+            drawRect(40f, 300f, 1040f, 1500f, Paint().apply { color = Color.WHITE })
+            val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; textSize = 64f }
+            drawText("SEDAD BANK", 300f, 450f, ink)
+            drawText("3.150,00", 360f, 800f, ink)
+            drawText("12:05:09   03-08-2026", 200f, 1100f, ink)
+        }
+        share(insert("sedad", png(bitmap)))
+        val state = awaitState { it.receipt is ReceiptUi.Done }
+        val r = (state.receipt as ReceiptUi.Done).reading
+        assertEquals("${r.provider}", ReceiptField.found(Provider.SEDAD), r.provider)
+        assertEquals("${r.amount}", ReceiptField.found(Amount(315000)), r.amount)
+        assertEquals("${r.date}", LocalDate.of(2026, 8, 3), r.date.value?.date)
+        assertEquals(LocalTime.of(12, 5, 9), r.date.value?.time)
+    }
+
+    @Test
+    fun receiptReadingFailure_isNotFound_andTheAppKeepsRunning() {
+        IntakeViewModel.readReceiptOverride = { throw IllegalStateException("ocr failure") }
+        share(insert("viewer", png(SyntheticHeader.viewer(NAME))))
+        val state = awaitState { it.receipt is ReceiptUi.Done }
+        val r = (state.receipt as ReceiptUi.Done).reading
+        assertEquals(FieldStatus.NOT_FOUND, r.amount.status)
+        assertEquals(FieldStatus.NOT_FOUND, r.date.status)
+        assertEquals("the name is still read", NAME, (state.header as HeaderUi.Done).result.name)
+        assertNotNull(currentIntake())
     }
 
     // ------------------------------------------------------------------ أدوات
