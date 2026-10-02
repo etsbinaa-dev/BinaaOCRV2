@@ -90,9 +90,12 @@ else
 fi
 
 # Header Engine موصول بالاستلام: فئات Tesseract (JNI) يجب أن تبقى بأسمائها بعد R8.
-for cls in 'Lcom/googlecode/tesseract/android/TessBaseAPI;' 'Lcom/googlecode/tesseract/android/ResultIterator;' 'Lcom/binaa/ocr/header/HeaderEngine;'; do
+for cls in 'Lcom/googlecode/tesseract/android/TessBaseAPI;' 'Lcom/googlecode/tesseract/android/ResultIterator;'; do
   grep -qF "$cls" ci-output/dex-strings.txt || { echo "::error::$cls missing from the release APK (R8)"; fail=1; }
 done
+# فئات التطبيق يُعاد تسميتها (R8): وجود HeaderEngine يُقرأ من ملف الـmapping.
+MAPPING=app/build/outputs/mapping/release/mapping.txt
+grep -qE '^com\.binaa\.ocr\.header\.HeaderEngine -> ' "$MAPPING" || { echo "::error::HeaderEngine was removed from the release APK by R8"; fail=1; }
 
 # ---- نماذج Tesseract: نفس الملفين المثبّتين في tessdata/tessdata.lock (حجمًا وSHA-256)، ولا نموذج آخر
 grep -vE '^\s*(#|$)' tessdata/tessdata.lock | while read -r lang repo commit sha bytes; do
