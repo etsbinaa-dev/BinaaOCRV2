@@ -29,7 +29,7 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 
 - `applicationId` = `com.binaa.ocr` — **نهائي**. كل تحديثات V2.x بهذا المعرّف ومفتاح V2 نفسه، فتُثبَّت فوق بعضها.
 - نسخة debug: `com.binaa.ocr.debug` (تُثبَّت بجانب الإصدار، بمفتاح debug).
-- `versionCode` يجب أن **يزيد** في كل نسخة تُوزَّع.
+- `versionCode` يجب أن **يزيد** في كل نسخة تُوزَّع: يُؤخذ من رقم تشغيل CI (`GITHUB_RUN_NUMBER`)، والبناء المحلي = 1.
 - minSdk 29، targetSdk/compileSdk 36.
 
 ## الخصوصية

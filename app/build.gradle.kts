@@ -127,8 +127,9 @@ android {
         applicationId = "com.binaa.ocr"
         minSdk = 29
         targetSdk = 36
-        // يجب أن يزيد versionCode في كل نسخة تُوزَّع، وإلا رفض Android التحديث.
-        versionCode = 1
+        // يجب أن يزيد versionCode في كل نسخة تُوزَّع، وإلا رفض Android التحديث: رقم تشغيل CI (يزيد مع كل بناء).
+        // البناء المحلي = 1، فلا يُثبَّت فوق نسخة من CI بالخطأ.
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
         // رقم كل نسخة ظاهر في الشاشة الرئيسية: أول 7 أحرف من commit البناء (في CI)، فلا تلتبس نسخة قديمة بجديدة.
         versionName = "2.0.0-alpha1+" + (System.getenv("GITHUB_SHA")?.take(7) ?: "local")
 
