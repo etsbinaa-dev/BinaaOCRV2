@@ -83,8 +83,9 @@ class ReceiptReaderTest {
         // المعرّف يحمل 2509141015 والسطر 25-09-15: لا تأكيد لترتيب التاريخ ⇒ لا نقرأ صيغة لا نعرفها.
         val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), date = "25-09-15")
         assertEquals(FieldStatus.NOT_FOUND, r.provider.status)
-        assertEquals(FieldReason.UNKNOWN_PROVIDER, r.amount.reason)
-        assertEquals(FieldReason.UNKNOWN_PROVIDER, r.date.reason)
+        // بنكيلي يكتب مبلغًا بلا كسر وتاريخًا قصيرًا: لا يُقرأ أي منهما بصيغة البنوك.
+        assertEquals(FieldStatus.NOT_FOUND, r.amount.status)
+        assertEquals(FieldStatus.NOT_FOUND, r.date.status)
     }
 
     @Test
@@ -327,11 +328,25 @@ class ReceiptReaderTest {
     // ------------------------------------------------------------------ تطبيق غير معروف أو ملتبس
 
     @Test
-    fun unknownProvider_readsNothing() {
+    fun unknownProvider_plainNumberIsNotAnAmount_butTheFullDateIsRead() {
         val r = read(W("MRU", 164, 1032), W("4500", 275, 1032), W("03-08-2026", 248, 1245))
         assertEquals(ReceiptField.notFound<Provider>(FieldReason.UNKNOWN_PROVIDER), r.provider)
         assertEquals(FieldStatus.NOT_FOUND, r.amount.status)
-        assertEquals(FieldStatus.NOT_FOUND, r.date.status)
+        assertEquals(LocalDate.of(2026, 8, 3), r.date.value!!.date)
+    }
+
+    @Test
+    fun logoHiddenUnderANotification_noTrId_bankAmountAndDateAreStillRead() {
+        // كما على S26 (السداد بالعربية، الشعار تحت إشعار): «cll» «asögl» «40.000,00» «oj2ô» … «11:59:23» «15-09-2026».
+        val r = read(
+            W("cll", 120, 856), W("asögl", 200, 856), W("40.000,00", 380, 856), W("oj2ô", 620, 856),
+            W("000111222333444555666", 200, 963),
+            W("11:59:23", 60, 1270), W("15-09-2026", 260, 1270),
+            W("1234567", 60, 1542),
+        )
+        assertEquals(ReceiptField.notFound<Provider>(FieldReason.UNKNOWN_PROVIDER), r.provider)
+        assertEquals(ReceiptField.found(amount("40000.00")), r.amount)
+        assertEquals(ReceiptField.found(PaymentDate(LocalDate.of(2026, 9, 15), LocalTime.of(11, 59, 23))), r.date)
     }
 
     @Test

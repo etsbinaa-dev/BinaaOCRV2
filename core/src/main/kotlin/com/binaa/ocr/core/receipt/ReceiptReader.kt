@@ -111,7 +111,9 @@ object ReceiptReader {
                     provider = ReceiptField(FieldStatus.UNCERTAIN, null, listOf(Provider.SEDAD, Provider.BCIPAY), FieldReason.CONFLICTING_PROVIDERS),
                 )
             } else {
-                unread(ReceiptField.notFound(FieldReason.UNKNOWN_PROVIDER), FieldReason.UNKNOWN_PROVIDER)
+                // لا شعار ولا معرّف (شعار السداد تحت إشعار، مثلًا): المبلغ بصيغة البنوك (40.000,00 بفاصلة عشرية) والتاريخ
+                // الكامل (DD-MM-YYYY) يُقرآن مع ذلك، والتطبيق يبقى للمستخدم. رقم بلا كسر (هاتف، 4500) لا يُعدّ مبلغًا هنا.
+                european(Provider.SEDAD, words, rows).copy(provider = ReceiptField.notFound(FieldReason.UNKNOWN_PROVIDER))
             }
             1 -> when (found.single()) {
                 Provider.BANKILY -> ReceiptReading(ReceiptField.found(Provider.BANKILY), ReceiptField.of(bankilyAmounts(rows)), ReceiptField.of(bankilyDates))
