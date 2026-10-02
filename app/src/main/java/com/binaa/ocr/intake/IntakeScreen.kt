@@ -44,6 +44,7 @@ import com.binaa.ocr.core.receipt.Provider
 import com.binaa.ocr.core.receipt.ReceiptField
 import com.binaa.ocr.header.NameReason
 import com.binaa.ocr.header.NameStatus
+import com.binaa.ocr.header.PaymentDirection
 import com.binaa.ocr.ui.theme.Binaa
 
 @Composable
@@ -194,9 +195,18 @@ private fun HeaderSection(header: HeaderUi) {
                     Text(stringResource(R.string.header_not_found), style = MaterialTheme.typography.titleMedium, color = colors.text)
                     val hint = when (result.reason) {
                         NameReason.NAME_UNREADABLE -> R.string.header_reason_unreadable
+                        NameReason.SENT_BY_YOU -> R.string.header_reason_sent_by_you
                         NameReason.HEADER_NOT_DETECTED, null -> R.string.header_reason_not_detected
                     }
                     Text(stringResource(hint), style = MaterialTheme.typography.bodyMedium, color = colors.textMuted, modifier = Modifier.testTag("intake-header-reason"))
+                }
+                result.direction?.let { direction ->
+                    Text(
+                        stringResource(if (direction == PaymentDirection.INCOMING) R.string.direction_incoming else R.string.direction_outgoing),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textMuted,
+                        modifier = Modifier.testTag("intake-direction"),
+                    )
                 }
             }
         }

@@ -25,6 +25,13 @@ class PixelImage(val width: Int, val height: Int, val argb: IntArray) {
 /** اتجاه واجهة الرأس. الكاشف الحالي يعرف LTR فقط (المثبت على S26)؛ RTL ينتظر لقطات حقيقية. */
 enum class UiDirection { LTR, RTL }
 
+/**
+ * نوع الرأس، ومنه اتجاه الدفعة:
+ * عارض الصور (صورة الإيصال بملء الشاشة: ← الاسم ☆ ↪ ⋮) = إيصال وصلك (وارد)،
+ * المحادثة (← الصورة الشخصية الاسم 📹 📞 ⋮) = إيصال أرسلته أنت (صادر)، والاسم اسم المستلم.
+ */
+enum class HeaderKind { IMAGE_VIEWER, CHAT }
+
 /** لماذا لم يُعطِ الكاشف مربع اسم. */
 enum class DetectorRejection {
     /** لا مجموعة أيقونات (☆ ↪ …) في صف الرأس: ليست لقطة Image Viewer. */
@@ -64,6 +71,9 @@ data class HeaderLayout(
     val name: Box?,
     val subtitle: Box?,
     val nameToIconsGap: Int?,
+    val kind: HeaderKind = HeaderKind.IMAGE_VIEWER,
+    /** الصورة الشخصية الدائرية بعد السهم (رأس المحادثة فقط). */
+    val avatar: Box? = null,
 )
 
 /** مربع الاسم بعد القناع: نص أسود على أبيض (ARGB) بنفس اتجاه الصورة، جاهز لـ[NamePrep]. */
@@ -154,6 +164,15 @@ object HeaderDetector {
             if (grp.size >= 2) groups += grp
             if (grp.size >= 2 && (icons.isEmpty() || grp.last().r > icons.last().r || (grp.last().r == icons.last().r && grp.size > icons.size))) icons = grp
         }
+        // رأس المحادثة: صورة شخصية دائرية بعد السهم. لا توجد في رأس عارض الصور أبدًا (الاسم يبدأ بعد السهم مباشرة).
+        avatar(px, W, B, iconZone)?.let { avatar ->
+            // أيقونات المحادثة: أقرب اثنتين إلى الطرف في صف الصورة الشخصية (📹 📞 أو 🏪 📞). حروف الاسم لا تُحسب أيقونات.
+            val row = right.filter { abs(it.cy - avatar.cy) <= scaled(25) }.sortedByDescending { it.r }
+            val picked = mutableListOf<Box>()
+            for (c in row) if (picked.size < 2 && (picked.isEmpty() || picked.last().l - c.r >= max(c.w, picked.last().w))) picked += c
+            if (picked.size < 2) return Detection(null, DetectorRejection.NO_ICON_GROUP, null)
+            return evaluate(px, W, B, picked.sortedBy { it.l }, 0, avatar)
+        }
         if (icons.size < 2) return Detection(null, DetectorRejection.NO_ICON_GROUP, null)
         val primary = evaluate(px, W, B, icons, 0)
         if (primary.rejection != null) return primary
@@ -170,10 +189,24 @@ object HeaderDetector {
     }
 
     /**
+     * الصورة الشخصية في رأس المحادثة: كتلة واحدة مختلفة عن الخلفية، شبه مربعة (دائرة)، 80–135 بكسل (عند 1080)،
+     * تبدأ بعد السهم مباشرة (120–220). صورة حقيقية أو حرف ملوّن أو الصورة الرمادية الافتراضية: كلها كتلة واحدة.
+     */
+    private fun avatar(px: Array<IntArray>, W: Int, B: IntArray, iconZone: Int): Box? {
+        val s = W / REFERENCE_WIDTH
+        val x1 = min(W, (W * 0.35).toInt())
+        val soft = Array(iconZone) { y -> BooleanArray(W) { x -> x < x1 && rgb(px[y][x]).let { q -> (0..2).sumOf { (q[it] - B[it]) * (q[it] - B[it]) } } > 40 * 40 } }
+        val size = (80 * s)..(135 * s)
+        return components(soft, 0, 0, x1, iconZone)
+            .filter { (b, n) -> b.w.toDouble() in size && b.h.toDouble() in size && b.w.toDouble() / b.h in 0.8..1.25 && n >= 0.5 * b.w * b.h && b.l.toDouble() in (120 * s)..(220 * s) }
+            .maxByOrNull { it.second }?.first
+    }
+
+    /**
      * الخطوات 3–7 للرأس الذي أيقوناته [icons]. [yStart] = أول صف يُبحث فيه عن سطر الاسم
      * (0 للرأس المختار كما في الكاشف المثبت؛ صف الرأس الثاني عند فحص الالتباس).
      */
-    private fun evaluate(px: Array<IntArray>, W: Int, B: IntArray, icons: List<Box>, yStart: Int): Detection {
+    private fun evaluate(px: Array<IntArray>, W: Int, B: IntArray, icons: List<Box>, yStart: Int, avatar: Box? = null): Detection {
         val zoneH = px.size
         val s = W / REFERENCE_WIDTH
         fun scaled(v: Int) = v * s
@@ -205,7 +238,7 @@ object HeaderDetector {
         val arrow = components(core, 0, 0, (W * 0.11).toInt(), zoneH).map { it.first }
             .filter { it.w.toDouble() in arrowSize && it.h.toDouble() in arrowSize && abs(it.cy - icons.first().cy) <= scaled(25) }
             .maxByOrNull { it.w * it.h }
-        val xStart = (arrow?.r ?: (W * 0.08).toInt()) + iconH / 3
+        val xStart = max((arrow?.r ?: (W * 0.08).toInt()) + iconH / 3, avatar?.let { it.r + scaledPx(20) } ?: 0)
         val firstIcon = icons.first()
         val xEnd = firstIcon.l - iconH / 4
         fun layout(name: Box?, sub: Box?, headerHeight: Int) = HeaderLayout(
@@ -218,6 +251,8 @@ object HeaderDetector {
             name = name,
             subtitle = sub,
             nameToIconsGap = name?.let { firstIcon.l - it.r },
+            kind = if (avatar != null) HeaderKind.CHAT else HeaderKind.IMAGE_VIEWER,
+            avatar = avatar,
         )
 
         // 6) أسطر النص بين السهم والأيقونات (إسقاط أفقي على القناع).

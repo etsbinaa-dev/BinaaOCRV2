@@ -367,4 +367,42 @@ class HeaderPipelineTest {
         assertEquals(NameReason.NAME_UNREADABLE, r.result.reason)
         assertNull(r.failure)
     }
+
+    // ------------------------------------------------------------------ الاتجاه و«Vous»
+
+    @Test
+    fun viewerHeaderReadingVous_isNotAName_itIsYourOwnPayment() {
+        val r = run(viewer(listOf(148..260)), FakeTess(listOf("Vous")), FakeMl(listOf("Vous")))
+        assertEquals(NameStatus.NOT_FOUND, r.result.status)
+        assertEquals(NameReason.SENT_BY_YOU, r.result.reason)
+        assertNull(r.result.name)
+        assertEquals(PaymentDirection.OUTGOING, r.result.direction)
+    }
+
+    @Test
+    fun viewerHeaderName_isIncoming() {
+        val r = run(viewer(three), FakeTess(listOf("نور", "كريم", "سالم")), FakeMl(listOf(null, null, null)))
+        assertEquals(PaymentDirection.INCOMING, r.result.direction)
+    }
+
+    @Test
+    fun noHeader_hasNoDirection() {
+        val c = Canvas(1080, 2229, 0xFFFFFFFF.toInt())
+        assertNull(run(c, FakeTess(emptyList()), FakeMl(emptyList())).result.direction)
+    }
+
+    @Test
+    fun chatHeaderName_isOutgoing_andReadAfterTheProfilePicture() {
+        val c = Canvas(1080, 2229, 0xFFFFFFFF.toInt()).apply {
+            val ink = 0xFF111111.toInt()
+            rect(48, 60, 96, 108, ink); rect(157, 30, 264, 137, 0xFF6F86A0.toInt())
+            rect(303, 52, 400, 94, ink); rect(440, 52, 530, 94, ink)
+            rect(714, 60, 774, 108, ink); rect(861, 57, 915, 111, ink)
+        }
+        val tess = FakeTess(listOf("Zyxwq", "Qwerty"))
+        val r = run(c, tess, FakeMl(listOf("Zyxwq", "Qwerty")))
+        assertEquals("Zyxwq Qwerty", r.result.name)
+        assertEquals(HeaderKind.CHAT, r.result.layout!!.kind)
+        assertEquals(PaymentDirection.OUTGOING, r.result.direction)
+    }
 }

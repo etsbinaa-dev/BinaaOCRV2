@@ -156,6 +156,61 @@ class HeaderDetectorTest {
         }
     }
 
+    // ------------------------------------------------------------------ رأس المحادثة (الصادر)
+
+    private val black = 0xFF111111.toInt()
+    private val photo = 0xFF6F86A0.toInt()
+
+    /** رأس محادثة WhatsApp بهندسة لقطات S26: ← صورة شخصية الاسم 📹 📞 ⋮، خلفية فاتحة. */
+    private fun Canvas.chat(nameRight: Int = 530, letterNearIcons: Boolean = false, subtitle: Boolean = false) {
+        rect(48, 60, 96, 108, black)              // ←
+        rect(157, 30, 264, 137, photo)            // الصورة الشخصية
+        var x = 303; while (x < nameRight) { rect(x, 52, minOf(x + 26, nameRight), 94, black); x += 34 }
+        if (letterNearIcons) rect(552, 74, 581, 108, black) // حرف عربي نازل قرب الأيقونات (ي)
+        if (subtitle) rect(302, 108, 665, 134, black)       // «Compte professionnel»
+        rect(714, 60, 774, 108, black)            // 📹
+        rect(861, 57, 915, 111, black)            // 📞
+        for (y in listOf(60, 78, 96)) rect(1008, y, 1020, y + 12, black) // ⋮
+    }
+
+    @Test
+    fun chatHeader_isDetected_afterTheProfilePicture_asOutgoing() {
+        val d = HeaderDetector.detect(canvas(bg = 0xFFFFFFFF.toInt()).apply { chat() }.image())
+        assertNull(d.rejection)
+        val l = d.layout!!
+        assertEquals(HeaderKind.CHAT, l.kind)
+        assertEquals(Box(157, 30, 264, 137), l.avatar)
+        assertEquals(listOf(Box(714, 60, 774, 108), Box(861, 57, 915, 111)), l.icons)
+        // الاسم يبدأ بعد الصورة الشخصية، لا يدخلها شيء منها.
+        assertEquals(Box(303, 52, 530, 94), l.name)
+        assertTrue(d.nameImage!!.box.l > l.avatar!!.r)
+    }
+
+    @Test
+    fun chatHeader_letterOfTheNameNearTheIcons_isPartOfTheName_notAnIcon() {
+        val d = HeaderDetector.detect(canvas(bg = 0xFFFFFFFF.toInt()).apply { chat(letterNearIcons = true) }.image())
+        assertNull(d.rejection)
+        assertEquals(2, d.layout!!.icons.size)
+        assertEquals(714, d.layout!!.icons.first().l)
+        assertEquals(581, d.layout!!.name!!.r)
+    }
+
+    @Test
+    fun chatHeader_businessSubtitle_isNotTheName() {
+        val d = HeaderDetector.detect(canvas(bg = 0xFFFFFFFF.toInt()).apply { chat(nameRight = 400, subtitle = true) }.image())
+        assertNull(d.rejection)
+        assertEquals(Box(303, 52, 397, 94), d.layout!!.name)
+        assertEquals(Box(302, 108, 665, 134), d.layout!!.subtitle)
+    }
+
+    @Test
+    fun viewerHeader_isStillTheViewerKind_withoutAvatar() {
+        val d = HeaderDetector.detect(canvas().apply { viewer() }.image())
+        assertEquals(HeaderKind.IMAGE_VIEWER, d.layout!!.kind)
+        assertNull(d.layout!!.avatar)
+        assertEquals(PaymentDirection.INCOMING, HeaderResult.of(d, null).let { HeaderResult(NameStatus.FOUND, "x", null, it.layout, null, null) }.direction)
+    }
+
     // ------------------------------------------------------------------ رؤوس متعددة (F-5)
 
     /** رأس مضغوط كامل (سهم + أيقونتان + اسم في صفّها) أعلاه [top]. */

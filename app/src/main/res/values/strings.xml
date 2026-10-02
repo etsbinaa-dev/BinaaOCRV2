@@ -33,6 +33,9 @@
     <string name="header_not_found">لم يُحدَّد الاسم</string>
     <string name="header_reason_not_detected">للحصول على الاسم تلقائيًا، خذ لقطة للشاشة كاملة وصورة الإيصال مفتوحة في WhatsApp.</string>
     <string name="header_reason_unreadable">لم نتمكن من قراءة الاسم.</string>
+    <string name="header_reason_sent_by_you">هذا إيصال أرسلته أنت. للدفعات الصادرة خذ لقطة للمحادثة مفتوحة، فيظهر اسم المستلم في الأعلى.</string>
+    <string name="direction_incoming">الاتجاه: وارد</string>
+    <string name="direction_outgoing">الاتجاه: صادر</string>
 
     <!-- المبلغ والتاريخ من الإيصال -->
     <string name="receipt_reading">نقرأ المبلغ والتاريخ…</string>
