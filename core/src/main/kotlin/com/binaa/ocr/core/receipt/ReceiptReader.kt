@@ -118,7 +118,12 @@ object ReceiptReader {
                 Provider.BIMBANK -> european(Provider.BIMBANK, words, rows)
                 Provider.SEDAD -> european(Provider.SEDAD, words, rows)
                 Provider.BCIPAY -> european(Provider.BCIPAY, words, rows)
-                Provider.MASRVI -> european(Provider.MASRVI, words, rows)
+                Provider.MASRVI -> european(Provider.MASRVI, words, rows).let { r ->
+                    // نافذة «Vous avez envoyé 45500.00 MRU le …»: المبلغ بعد «envoyé» مباشرة (لا «total TTC»).
+                    val sent = words.windowed(2).filter { (a, _) -> ENVOYE.matches(a.text) }.mapNotNull { (_, b) -> dottedAmount(b.text) }
+                    val european = r.amount.value?.let { listOf(it) } ?: r.amount.candidates
+                    r.copy(amount = ReceiptField.of(european + sent))
+                }
             }
             else -> unread(ReceiptField(FieldStatus.UNCERTAIN, null, found, FieldReason.CONFLICTING_PROVIDERS), FieldReason.CONFLICTING_PROVIDERS)
         }
@@ -171,7 +176,8 @@ object ReceiptReader {
      * يُجرَّب الترتيبان، ويُقبل فقط ما يطابق المعرّف، فالمعرّف نفسه يحسم الترتيب.
      */
     private fun bankilyDates(words: List<Token>, rows: List<List<Token>>): List<PaymentDate> {
-        val ids = words.filter { BANKILY_ID.matches(it.text) }.map { it.text.substring(2, 12) }.toSet()
+        // «ID:1126100109413164250»: ML Kit قد يُلصق التسمية بالمعرّف، فتُؤخذ الأرقام الـ19 من داخل الكلمة.
+        val ids = words.mapNotNull { ID_IN_WORD.find(it.text)?.groupValues?.get(1) }.map { it.substring(2, 12) }.toSet()
         if (ids.isEmpty()) return emptyList()
         return rows.flatMap { row ->
             val time = timeIn(row) ?: return@flatMap emptyList()
@@ -253,6 +259,13 @@ object ReceiptReader {
         GROUPED_AMOUNT.matchEntire(text)?.let { m -> return Amount(m.groupValues[1].replace(Regex("[.,]"), "").toLong() * 100) }
         return null
     }
+
+    private val ID_IN_WORD = Regex("""(?<!\d)(\d{19})(?!\d)""")
+    private val ENVOYE = Regex("""(?i)envoy[ée]e?""")
+
+    /** «45500.00» أو «45500» أو «45 500,00»: مبلغ بعد «envoyé». */
+    private fun dottedAmount(text: String): Amount? =
+        Regex("""([1-9]\d{0,6})(?:[.,](\d{2}))?""").matchEntire(text)?.let { m -> Amount(m.groupValues[1].toLong() * 100 + m.groupValues[2].ifEmpty { "0" }.toLong()) }
 
     private val BANKILY_ID = Regex("""\d{19}""")
     private val PHONE = Regex("""[234]\d{7}""")

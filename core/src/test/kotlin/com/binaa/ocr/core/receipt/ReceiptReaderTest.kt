@@ -153,6 +153,34 @@ class ReceiptReaderTest {
     }
 
     @Test
+    fun bankilyInFrench_idGluedToItsLabel_asReadOnTheS26() {
+        // كما في «تفاصيل القراءة»: «Trs» «ID:1125…» ثم «Date» «et» «heure» «14-09-25» «10:15:42».
+        val r = read(
+            W("Receveur", 300, 914), W("34111222", 500, 914),
+            W("Montant", 250, 972), W("envoyé", 400, 972), W("1860", 560, 972), W("MRU", 660, 972),
+            W("Trs", 200, 1083), W("ID:1125091410151234567", 280, 1083),
+            W("Date", 150, 1132), W("et", 250, 1132), W("heure", 300, 1132), W("14-09-25", 420, 1132), W("10:15:42", 600, 1132),
+        )
+        assertEquals(ReceiptField.found(Provider.BANKILY), r.provider)
+        assertEquals(ReceiptField.found(amount("1860.00")), r.amount)
+        assertEquals(LocalDate.of(2025, 9, 14), r.date.value!!.date)
+    }
+
+    @Test
+    fun masrviPopup_amountAfterEnvoye_notTheTotalTtc() {
+        // «Vous avez envoyé 12500.00 MRU le / 03/08/2026 11:48:34 (total TTC: / 12556.50 MRU) à … / (REF…) / Masrvi».
+        val r = read(
+            W("Vous", 40, 929), W("avez", 140, 929), W("envoyé", 240, 929), W("12500.00", 400, 929), W("MRU", 580, 929), W("le", 680, 929),
+            W("03/08/2026", 60, 984), W("11:48:34", 300, 984), W("(total", 480, 984), W("TTC", 620, 984),
+            W("12556.50", 40, 1034), W("MRU)", 240, 1034), W("à", 340, 1034),
+            W("compte", 200, 1090), W("Masrvi", 380, 1090),
+        )
+        assertEquals(ReceiptField.found(Provider.MASRVI), r.provider)
+        assertEquals(ReceiptField.found(amount("12500.00")), r.amount)
+        assertEquals(LocalDate.of(2026, 8, 3), r.date.value!!.date)
+    }
+
+    @Test
     fun bankily_impossibleDate_isNotRead() {
         val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), id = "1125139910151234567", date = "25-13-99")
         assertEquals(FieldStatus.NOT_FOUND, r.provider.status)
