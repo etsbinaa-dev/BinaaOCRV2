@@ -88,8 +88,11 @@ fun HomeScreen(
         )
         Spacer(Modifier.height(20.dp))
         val empty = state.pending.isEmpty() && state.archived.isEmpty()
-        GuideCard(startOpen = empty)
-        Spacer(Modifier.height(16.dp))
+        // الإرشاد فقط قبل أول دفعة؛ بعدها الشاشة كلها للدفعات.
+        if (empty) {
+            GuideCard(startOpen = true)
+            Spacer(Modifier.height(16.dp))
+        }
         if (empty) {
             Spacer(Modifier.height(16.dp))
             Text(
