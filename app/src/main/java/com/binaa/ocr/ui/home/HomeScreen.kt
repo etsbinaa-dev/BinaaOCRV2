@@ -47,6 +47,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.binaa.ocr.intake.displayName
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
 import com.binaa.ocr.R
 import com.binaa.ocr.core.archive.PaymentRecord
 import com.binaa.ocr.core.archive.PaymentStatus
@@ -185,71 +189,80 @@ private fun DeleteDialog(record: PaymentRecord, onConfirm: () -> Unit, onCancel:
 private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore: (String) -> Unit, onOpen: (PaymentRecord) -> Unit, onDelete: (PaymentRecord) -> Unit) {
     val colors = Binaa.colors
     val ltr = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Ltr, fontWeight = FontWeight.SemiBold)
+    val incoming = r.direction == "INCOMING"
+    val outgoing = r.direction == "OUTGOING"
+    // الاتجاه بنظرة واحدة: خلفية باهتة وشريط جانبي بلون شارته (أخضر وارد، ذهبي صادر). بلا اتجاه ⇒ بطاقة عادية.
+    val accent = when { incoming -> colors.found; outgoing -> colors.uncertainBorder; else -> colors.divider }
+    val tint = when { incoming -> colors.incomingTint; outgoing -> colors.outgoingTint; else -> colors.card }
     Row(
         Modifier
             .fillMaxWidth()
-            .background(colors.card, MaterialTheme.shapes.medium)
+            .height(IntrinsicSize.Min)
+            .clip(MaterialTheme.shapes.medium)
+            .background(tint)
             .border(1.dp, colors.divider, MaterialTheme.shapes.medium)
             .combinedClickable(onClick = { onOpen(r) }, onLongClick = { onDelete(r) })
-            .padding(horizontal = 12.dp, vertical = 10.dp)
             .testTag("payment-${r.id}"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    displayName(r.name),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = colors.text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                r.direction?.let { d ->
-                    val incoming = d == "INCOMING"
-                    Spacer(Modifier.size(6.dp))
+        Box(Modifier.width(5.dp).fillMaxHeight().background(accent))
+        Row(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(if (incoming) R.string.direction_in else R.string.direction_out),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.onBrand,
-                        modifier = Modifier
-                            .background(if (incoming) colors.found else colors.uncertainBorder, CircleShape)
-                            .padding(horizontal = 8.dp, vertical = 1.dp),
-                    )
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text)
-                Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
-                r.provider?.let { p ->
-                    // شارة بلون كل تطبيق (بلا شعارات تجارية: لا صور داخل التطبيق).
-                    Text(
-                        providerLabel(p),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = androidx.compose.ui.graphics.Color.White,
+                        displayName(r.name),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.text,
                         maxLines = 1,
-                        modifier = Modifier
-                            .background(providerColor(p), MaterialTheme.shapes.small)
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                            .testTag("provider-${r.id}"),
+                        overflow = TextOverflow.Ellipsis,
+                        // الاسم يملأ السطر، فتبقى شارة الاتجاه في المكان نفسه في كل البطاقات مهما طال الاسم.
+                        modifier = Modifier.weight(1f),
                     )
+                    r.direction?.let {
+                        Spacer(Modifier.size(6.dp))
+                        Text(
+                            stringResource(if (incoming) R.string.direction_in else R.string.direction_out),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onBrand,
+                            modifier = Modifier
+                                .background(if (incoming) colors.found else colors.uncertainBorder, CircleShape)
+                                .padding(horizontal = 8.dp, vertical = 1.dp),
+                        )
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text)
+                    Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                    r.provider?.let { p ->
+                        // شارة بلون كل تطبيق (بلا شعارات تجارية: لا صور داخل التطبيق).
+                        Text(
+                            providerLabel(p),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = androidx.compose.ui.graphics.Color.White,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .background(providerColor(p), MaterialTheme.shapes.small)
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                .testTag("provider-${r.id}"),
+                        )
+                    }
                 }
             }
-        }
-        Spacer(Modifier.size(8.dp))
-        if (r.status == PaymentStatus.PENDING) {
-            Button(
-                onClick = { onEntered(r.id) },
-                modifier = Modifier.height(40.dp).testTag("entered-${r.id}"),
-                contentPadding = PaddingValues(horizontal = 18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = colors.brand),
-            ) { Text(stringResource(R.string.home_entered), color = colors.onBrand) }
-        } else {
-            OutlinedButton(
-                onClick = { onRestore(r.id) },
-                modifier = Modifier.height(40.dp).testTag("restore-${r.id}"),
-                contentPadding = PaddingValues(horizontal = 14.dp),
-            ) { Text(stringResource(R.string.home_restore), color = colors.text) }
+            Spacer(Modifier.size(8.dp))
+            if (r.status == PaymentStatus.PENDING) {
+                Button(
+                    onClick = { onEntered(r.id) },
+                    modifier = Modifier.height(40.dp).testTag("entered-${r.id}"),
+                    contentPadding = PaddingValues(horizontal = 18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.brand),
+                ) { Text(stringResource(R.string.home_entered), color = colors.onBrand) }
+            } else {
+                OutlinedButton(
+                    onClick = { onRestore(r.id) },
+                    modifier = Modifier.height(40.dp).testTag("restore-${r.id}"),
+                    contentPadding = PaddingValues(horizontal = 14.dp),
+                ) { Text(stringResource(R.string.home_restore), color = colors.text) }
+            }
         }
     }
 }
