@@ -131,6 +131,17 @@ class PaymentStore(val dir: File, private val clock: () -> Long = System::curren
     fun imageOf(record: PaymentRecord): File = File(dir, record.image)
 
     /**
+     * حذف نهائي (دفعة مكررة أو خاطئة): السجل أولًا، ثم صورة إيصاله. لا سلة محذوفات.
+     * @return true إن حُذف السجل، false إن لم يوجد.
+     */
+    fun delete(id: String): Boolean {
+        val current = list().firstOrNull { it.id == id } ?: return false
+        if (!File(dir, "${current.id}.json").delete()) return false
+        imageOf(current).delete()
+        return true
+    }
+
+    /**
      * دفعات محفوظة قد تكون هي نفسها، للتنبيه فقط (لا منع): نفس اللقطة ([imageSha256])، أو نفس الاسم (بلا فرق حالة الأحرف
      * والفراغات) والمبلغ والتاريخ. نفس اللقطة أولًا.
      */

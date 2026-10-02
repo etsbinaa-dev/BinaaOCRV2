@@ -56,6 +56,11 @@
     <!-- للإدخال والأرشيف -->
     <string name="home_tab_pending">للإدخال (%1$d)</string>
     <string name="home_tab_archive">الأرشيف (%1$d)</string>
+    <string name="home_delete_hint">اضغط مطوّلًا على دفعة لحذفها.</string>
+    <string name="home_delete">حذف</string>
+    <string name="home_delete_title">حذف هذه الدفعة؟</string>
+    <string name="home_delete_body">%1$s، %2$s MRU، %3$s.
+تُحذف مع صورة إيصالها، ولا يمكن استرجاعها.</string>
     <string name="home_pending_empty">لا دفعات تنتظر الإدخال.</string>
     <string name="home_archive_empty">الأرشيف فارغ.</string>
     <string name="home_entered">تم</string>

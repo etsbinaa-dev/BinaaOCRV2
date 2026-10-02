@@ -110,6 +110,18 @@ class PaymentStoreTest {
         assertEquals(null, store.list().single().imageSha256)
     }
 
+    @Test
+    fun delete_removesTheRecordAndItsImage_only() {
+        val keep = save(img = image("a.png"))
+        val gone = save(img = image("b.png", byteArrayOf(7)))
+        val goneImage = store.imageOf(gone)
+        assertTrue(store.delete(gone.id))
+        assertEquals(listOf(keep.id), store.list().map { it.id })
+        assertFalse(goneImage.exists())
+        assertTrue(store.imageOf(keep).exists())
+        assertFalse("already gone", store.delete(gone.id))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun aBlankName_isRefused() {
         save(name = "  ")

@@ -26,6 +26,8 @@ data class HomeState(
     val tab: HomeTab = HomeTab.PENDING,
     /** صورة الإيصال المفتوحة (للعرض فقط، مصغّرة). */
     val viewing: Pair<PaymentRecord, ImageBitmap?>? = null,
+    /** دفعة تنتظر تأكيد الحذف (ضغطة مطوّلة). */
+    val deleting: PaymentRecord? = null,
 )
 
 /** «للإدخال» و«الأرشيف» من الأرشيف المحلي. كل قراءة وكتابة خارج الخيط الرئيسي. */
@@ -51,6 +53,18 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** إرجاع من الأرشيف إلى «للإدخال». */
     fun markPending(id: String) = change { store.markPending(id) }
+
+    /** ضغطة مطوّلة ⇒ سؤال تأكيد قبل الحذف. */
+    fun requestDelete(record: PaymentRecord) = _state.update { it.copy(deleting = record) }
+
+    fun cancelDelete() = _state.update { it.copy(deleting = null) }
+
+    /** حذف نهائي للسجل وصورة إيصاله. */
+    fun confirmDelete() {
+        val record = _state.value.deleting ?: return
+        _state.update { it.copy(deleting = null) }
+        change { store.delete(record.id) }
+    }
 
     fun open(record: PaymentRecord) {
         _state.update { it.copy(viewing = record to null) }

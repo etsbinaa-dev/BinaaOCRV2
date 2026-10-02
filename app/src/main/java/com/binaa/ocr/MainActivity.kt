@@ -29,6 +29,9 @@ class MainActivity : ComponentActivity() {
                     onRestore = viewModel::markPending,
                     onOpen = viewModel::open,
                     onCloseImage = viewModel::closeImage,
+                    onDelete = viewModel::requestDelete,
+                    onConfirmDelete = viewModel::confirmDelete,
+                    onCancelDelete = viewModel::cancelDelete,
                 )
             }
         }

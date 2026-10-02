@@ -41,6 +41,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import com.binaa.ocr.intake.displayName
 import com.binaa.ocr.R
 import com.binaa.ocr.core.archive.PaymentRecord
 import com.binaa.ocr.core.archive.PaymentStatus
@@ -59,6 +65,9 @@ fun HomeScreen(
     onRestore: (String) -> Unit = {},
     onOpen: (PaymentRecord) -> Unit = {},
     onCloseImage: () -> Unit = {},
+    onDelete: (PaymentRecord) -> Unit = {},
+    onConfirmDelete: () -> Unit = {},
+    onCancelDelete: () -> Unit = {},
 ) {
     val colors = Binaa.colors
     Column(
@@ -117,7 +126,8 @@ fun HomeScreen(
                     modifier = Modifier.testTag("tab-archive"),
                 )
             }
-            Spacer(Modifier.height(12.dp))
+            Text(stringResource(R.string.home_delete_hint), style = MaterialTheme.typography.bodySmall, color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(8.dp))
             val list = if (state.tab == HomeTab.PENDING) state.pending else state.archived
             if (list.isEmpty()) {
                 Text(
@@ -128,18 +138,19 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                 )
             }
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (r in list) PaymentCard(r, onEntered, onRestore, onOpen)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (r in list) PaymentCard(r, onEntered, onRestore, onOpen, onDelete)
             }
         }
         Spacer(Modifier.height(24.dp))
     }
 
+    state.deleting?.let { DeleteDialog(it, onConfirmDelete, onCancelDelete) }
     state.viewing?.let { (record, image) ->
         AlertDialog(
             onDismissRequest = onCloseImage,
             confirmButton = { TextButton(onClick = onCloseImage) { Text(stringResource(R.string.intake_close), color = colors.text) } },
-            title = { Text(record.name) },
+            title = { Text(displayName(record.name)) },
             text = {
                 if (image != null) {
                     Image(bitmap = image, contentDescription = stringResource(R.string.intake_preview_description), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp))
@@ -151,64 +162,94 @@ fun HomeScreen(
     }
 }
 
-/** دفعة واحدة: الاسم والاتجاه، المبلغ، التاريخ والتطبيق، ثم «تم» (أو «إرجاع» في الأرشيف). لمسة البطاقة تفتح صورة الإيصال. */
 @Composable
-private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore: (String) -> Unit, onOpen: (PaymentRecord) -> Unit) {
+private fun DeleteDialog(record: PaymentRecord, onConfirm: () -> Unit, onCancel: () -> Unit) {
     val colors = Binaa.colors
-    val ltr = MaterialTheme.typography.headlineSmall.copy(textDirection = TextDirection.Ltr)
-    Column(
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.home_delete_title)) },
+        text = { Text(stringResource(R.string.home_delete_body, displayName(record.name), record.amountText, record.date)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm, modifier = Modifier.testTag("delete-confirm")) { Text(stringResource(R.string.home_delete), color = colors.error) }
+        },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.intake_cancel), color = colors.text) } },
+    )
+}
+
+/**
+ * دفعة واحدة في بطاقة مضغوطة: الاسم والاتجاه، ثم المبلغ والتاريخ والتطبيق في سطر، و«تم» (أو «إرجاع») صغيرًا على الجانب.
+ * لمسة البطاقة تفتح صورة الإيصال، وضغطة مطوّلة تسأل عن الحذف.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore: (String) -> Unit, onOpen: (PaymentRecord) -> Unit, onDelete: (PaymentRecord) -> Unit) {
+    val colors = Binaa.colors
+    val ltr = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Ltr, fontWeight = FontWeight.SemiBold)
+    Row(
         Modifier
             .fillMaxWidth()
-            .background(colors.card, MaterialTheme.shapes.large)
-            .border(1.dp, colors.divider, MaterialTheme.shapes.large)
-            .clickable { onOpen(r) }
-            .padding(14.dp)
+            .background(colors.card, MaterialTheme.shapes.medium)
+            .border(1.dp, colors.divider, MaterialTheme.shapes.medium)
+            .combinedClickable(onClick = { onOpen(r) }, onLongClick = { onDelete(r) })
+            .padding(horizontal = 12.dp, vertical = 10.dp)
             .testTag("payment-${r.id}"),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(r.name, style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.weight(1f))
-            r.direction?.let { d ->
-                val incoming = d == "INCOMING"
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    stringResource(if (incoming) R.string.direction_in else R.string.direction_out),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = colors.onBrand,
-                    modifier = Modifier
-                        .background(if (incoming) colors.found else colors.uncertainBorder, CircleShape)
-                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                    displayName(r.name),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = colors.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                r.direction?.let { d ->
+                    val incoming = d == "INCOMING"
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        stringResource(if (incoming) R.string.direction_in else R.string.direction_out),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onBrand,
+                        modifier = Modifier
+                            .background(if (incoming) colors.found else colors.uncertainBorder, CircleShape)
+                            .padding(horizontal = 8.dp, vertical = 1.dp),
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text)
+                Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                r.provider?.let { p ->
+                    // شارة بلون كل تطبيق (بلا شعارات تجارية: لا صور داخل التطبيق).
+                    Text(
+                        providerLabel(p),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = androidx.compose.ui.graphics.Color.White,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .background(providerColor(p), MaterialTheme.shapes.small)
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .testTag("provider-${r.id}"),
+                    )
+                }
             }
         }
-        Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text)
-        Text(
-            "\u2066" + r.date + "\u2069",
-            style = MaterialTheme.typography.bodyMedium,
-            color = colors.textMuted,
-        )
-        r.provider?.let { p ->
-            // شارة كبيرة بلون كل تطبيق (بلا شعارات تجارية: لا صور داخل التطبيق).
-            Text(
-                providerLabel(p),
-                style = MaterialTheme.typography.titleMedium,
-                color = androidx.compose.ui.graphics.Color.White,
-                modifier = Modifier
-                    .background(providerColor(p), MaterialTheme.shapes.medium)
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
-                    .testTag("provider-${r.id}"),
-            )
-        }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.size(8.dp))
         if (r.status == PaymentStatus.PENDING) {
             Button(
                 onClick = { onEntered(r.id) },
-                modifier = Modifier.fillMaxWidth().testTag("entered-${r.id}"),
+                modifier = Modifier.height(40.dp).testTag("entered-${r.id}"),
+                contentPadding = PaddingValues(horizontal = 18.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = colors.brand),
             ) { Text(stringResource(R.string.home_entered), color = colors.onBrand) }
         } else {
-            OutlinedButton(onClick = { onRestore(r.id) }, modifier = Modifier.fillMaxWidth().testTag("restore-${r.id}")) {
-                Text(stringResource(R.string.home_restore), color = colors.text)
-            }
+            OutlinedButton(
+                onClick = { onRestore(r.id) },
+                modifier = Modifier.height(40.dp).testTag("restore-${r.id}"),
+                contentPadding = PaddingValues(horizontal = 14.dp),
+            ) { Text(stringResource(R.string.home_restore), color = colors.text) }
         }
     }
 }

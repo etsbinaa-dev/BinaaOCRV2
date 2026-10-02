@@ -28,6 +28,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -243,7 +244,7 @@ private fun HeaderSection(header: HeaderUi) {
                 val result = header.result
                 val name = result.name
                 if (result.status == NameStatus.FOUND && name != null) {
-                    Text(name, style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.testTag("intake-header-name"))
+                    Text(displayName(name), style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.testTag("intake-header-name"))
                     if (result.approximate) Text(stringResource(R.string.header_name_approximate), style = MaterialTheme.typography.bodyMedium, color = colors.textMuted)
                 } else {
                     Text(stringResource(R.string.header_not_found), style = MaterialTheme.typography.titleMedium, color = colors.text)
@@ -288,6 +289,8 @@ private fun ReviewForm(draft: PaymentDraft, header: HeaderUi.Done, onEdit: ((Pay
             label = { Text(stringResource(R.string.receipt_name)) },
             supportingText = if (nameHint != null) { { Text(stringResource(nameHint)) } } else null,
             singleLine = true,
+            // رقم هاتف مكان الاسم: من اليسار إلى اليمين، فلا تنتقل «+» إلى آخره.
+            textStyle = if (isPhoneLike(draft.name)) LocalTextStyle.current.copy(textDirection = TextDirection.Ltr) else LocalTextStyle.current,
             modifier = Modifier.fillMaxWidth().testTag("review-name"),
         )
         OutlinedTextField(
@@ -359,6 +362,12 @@ private fun Chips(options: List<String>, selected: String?, label: @Composable (
         for (o in options) FilterChip(selected = o == selected, onClick = { onPick(o) }, label = { Text(label(o)) }, modifier = Modifier.testTag("chip-$o"))
     }
 }
+
+/** اسم بلا أي حرف (رقم هاتف مثل «+222 47 35 57 37»). */
+fun isPhoneLike(name: String) = name.isNotBlank() && name.none { it.isLetter() }
+
+/** للعرض: رقم الهاتف معزول من اليسار إلى اليمين داخل الواجهة العربية؛ الأسماء كما هي. */
+fun displayName(name: String) = if (isPhoneLike(name)) "\u2066$name\u2069" else name
 
 @Composable
 fun providerLabel(p: String): String = stringResource(
