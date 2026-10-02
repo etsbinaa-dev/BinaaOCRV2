@@ -176,6 +176,8 @@ object HeaderDetector {
             val row = right.filter { abs(it.cy - avatar.cy) <= scaled(25) }.sortedByDescending { it.r }
             val picked = mutableListOf<Box>()
             for (c in row) if (picked.size < 2 && (picked.isEmpty() || picked.last().l - c.r >= max(c.w, picked.last().w))) picked += c
+            // حساب تجاري (📞 فقط، بلا 📹): أيقونة واحدة بحجم عادي، والقائمة ⋮ ثلاث نقاط صغيرة ⇒ تُعدّ النقاط أيقونةً ثانية.
+            if (picked.size == 1) menuDots(strong, W, iconZone, avatar)?.takeIf { it.l > picked.single().r }?.let { picked.add(0, it) }
             if (picked.size < 2) return Detection(null, DetectorRejection.NO_ICON_GROUP, null)
             return evaluate(px, W, B, picked.sortedBy { it.l }, 0, avatar)
         }
@@ -192,6 +194,25 @@ object HeaderDetector {
                 d.rejection == null && d.layout?.arrow != null
             }
         return if (second) Detection(null, DetectorRejection.MULTIPLE_HEADER_CANDIDATES, null) else primary
+    }
+
+    /**
+     * قائمة ⋮ في رأس المحادثة: ثلاث نقاط صغيرة (6–18 بكسل عند 1080) فوق بعضها في عمود واحد، بمسافات متساوية تقريبًا،
+     * في الطرف الأيمن من صف الصورة الشخصية. @return مربع النقاط الثلاث معًا، أو null.
+     */
+    private fun menuDots(strong: Array<BooleanArray>, W: Int, iconZone: Int, avatar: Box): Box? {
+        val s = W / REFERENCE_WIDTH
+        val dot = (6 * s)..(18 * s)
+        val dots = components(strong, (W * 0.85).toInt(), 0, W, iconZone).map { it.first }
+            .filter { it.w.toDouble() in dot && it.h.toDouble() in dot && it.cy in avatar.t..avatar.b }
+        for (a in dots) {
+            val col = dots.filter { abs(it.cx - a.cx) <= 3 * s }.sortedBy { it.cy }
+            if (col.size != 3) continue
+            val g1 = col[1].cy - col[0].cy; val g2 = col[2].cy - col[1].cy
+            if (g1 <= 0 || abs(g1 - g2) > max(2.0, 0.25 * g1)) continue
+            return Box(col.minOf { it.l }, col.first().t, col.maxOf { it.r }, col.last().b)
+        }
+        return null
     }
 
     /**

@@ -177,15 +177,16 @@ class HeaderDetectorTest {
     private val photo = 0xFF6F86A0.toInt()
 
     /** رأس محادثة WhatsApp بهندسة لقطات S26: ← صورة شخصية الاسم 📹 📞 ⋮، خلفية فاتحة. */
-    private fun Canvas.chat(nameRight: Int = 530, letterNearIcons: Boolean = false, subtitle: Boolean = false) {
+    private fun Canvas.chat(nameRight: Int = 530, letterNearIcons: Boolean = false, subtitle: Boolean = false, video: Boolean = true, menu: Boolean = true) {
         rect(48, 60, 96, 108, black)              // ←
         rect(157, 30, 264, 137, photo)            // الصورة الشخصية
         var x = 303; while (x < nameRight) { rect(x, 52, minOf(x + 26, nameRight), 94, black); x += 34 }
         if (letterNearIcons) rect(552, 74, 581, 108, black) // حرف عربي نازل قرب الأيقونات (ي)
         if (subtitle) rect(302, 108, 665, 134, black)       // «Compte professionnel»
-        rect(714, 60, 774, 108, black)            // 📹
+        if (video) rect(714, 60, 774, 108, black) // 📹
         rect(861, 57, 915, 111, black)            // 📞
-        for (y in listOf(60, 78, 96)) rect(1008, y, 1020, y + 12, black) // ⋮
+        if (!video) rect(921, 78, 945, 93, black) // ▾ بجانب 📞 (حساب تجاري)
+        if (menu) for (y in listOf(60, 78, 96)) rect(1008, y, 1020, y + 12, black) // ⋮
     }
 
     @Test
@@ -199,6 +200,23 @@ class HeaderDetectorTest {
         // الاسم يبدأ بعد الصورة الشخصية، لا يدخلها شيء منها.
         assertEquals(Box(303, 52, 530, 94), l.name)
         assertTrue(d.nameImage!!.box.l > l.avatar!!.r)
+    }
+
+    @Test
+    fun businessChat_callIconOnly_theMenuDotsAreTheSecondIcon() {
+        // كما على S26 (حساب تجاري، الوضع الفاتح): ← صورة الاسم 📞▾ ⋮، بلا 📹.
+        val d = HeaderDetector.detect(canvas(bg = 0xFFFFFFFF.toInt()).apply { chat(video = false) }.image())
+        assertNull(d.rejection)
+        val l = d.layout!!
+        assertEquals(HeaderKind.CHAT, l.kind)
+        assertEquals(listOf(Box(861, 57, 915, 111), Box(1008, 60, 1020, 108)), l.icons)
+        assertEquals(Box(303, 52, 530, 94), l.name)
+    }
+
+    @Test
+    fun chat_oneIconAndNoMenuDots_isStillNoIconGroup() {
+        val d = HeaderDetector.detect(canvas(bg = 0xFFFFFFFF.toInt()).apply { chat(video = false, menu = false) }.image())
+        assertEquals(DetectorRejection.NO_ICON_GROUP, d.rejection)
     }
 
     @Test
