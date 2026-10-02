@@ -37,6 +37,9 @@ data class BinaaColors(
     val uncertainBackground: Color,
     val notFoundBorder: Color,
     val error: Color,
+    /** خلفية بطاقة الدفعة الواردة والصادرة: درجة باهتة من لون شارتها، تبقى الكتابة فوقها واضحة. */
+    val incomingTint: Color,
+    val outgoingTint: Color,
 )
 
 private val Light = BinaaColors(
@@ -52,6 +55,8 @@ private val Light = BinaaColors(
     uncertainBackground = Color(0xFFFFF8EC),
     notFoundBorder = Color(0xFFA3ACB2),
     error = Color(0xFFB3261E),
+    incomingTint = Color(0xFFEEF7F1),
+    outgoingTint = Color(0xFFFCF4E4),
 )
 
 private val Dark = BinaaColors(
@@ -67,6 +72,8 @@ private val Dark = BinaaColors(
     uncertainBackground = Color(0xFF2A2418),
     notFoundBorder = Color(0xFF56636B),
     error = Color(0xFFF2B8B5),
+    incomingTint = Color(0xFF15261E),
+    outgoingTint = Color(0xFF29231A),
 )
 
 val LocalBinaaColors = staticCompositionLocalOf { Light }
