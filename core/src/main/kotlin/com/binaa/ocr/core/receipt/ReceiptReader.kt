@@ -137,7 +137,12 @@ object ReceiptReader {
      * ML Kit يُلصق نقطتي «المبلغ المرسل:» بالرقم المجاور في السطر العربي.
      */
     private fun tokens(document: OcrDocument): List<Token> =
-        document.words.mapNotNull { w -> w.box?.let { Token(w.text.trim().trim(':', '：', '؛', ';').trim(), it) } }.filter { it.text.isNotEmpty() }
+        document.words.mapNotNull { w -> w.box?.let { Token(w.text.trim().trim(':', '：', '؛', ';').trim().let(::withoutGluedResidue), it) } }.filter { it.text.isNotEmpty() }
+
+    /** «12600:al»: ML Kit قد يُلصق بالرقم بقايا الكلمة العربية بعد النقطتين ⇒ الرقم وحده. «12:44:14» و«26-10-02» لا تتغير. */
+    private fun withoutGluedResidue(text: String): String = GLUED_RESIDUE.matchEntire(text)?.groupValues?.get(1) ?: text
+
+    private val GLUED_RESIDUE = Regex("""(\d[\d.,]*)[:：؛;][^\d]+""")
 
     /**
      * للتشخيص فقط (يُعرض على شاشة المستخدم، لا يُسجَّل ولا يُحفظ): صفوف جسم الإيصال كما قرأها ML Kit، من اليسار إلى اليمين،
@@ -184,14 +189,25 @@ object ReceiptReader {
             // «26-10-02:cöglg»: ML Kit قد يُلصق بالتاريخ بقايا الكلمة العربية المجاورة، فيُؤخذ التاريخ من داخل الكلمة.
             row.flatMap { SHORT_DATE.findAll(it.text) }.flatMap { m ->
                 val (a, mm, c) = m.destructured
-                val hhmm = time.hour.toString().padStart(2, '0') + time.minute.toString().padStart(2, '0')
                 listOf(Triple(a, mm, c), Triple(c, mm, a)).distinct().mapNotNull { (yy, month, dd) ->
-                    if (yy + month + dd + hhmm !in ids) return@mapNotNull null
+                    if (ids.none { id -> id.startsWith(yy + month + dd) && idTimeMatches(id.substring(6), time) }) return@mapNotNull null
                     runCatching { PaymentDate(LocalDate.of(2000 + yy.toInt(), month.toInt(), dd.toInt()), time) }.getOrNull()
                 }
             }
         }
     }
+
+    /**
+     * المعرّف يُنشأ قبل عرض النافذة: دقيقته هي دقيقة الوقت المعروض أو قبلها بقليل («…1401…» مع «14:02:01» على S26).
+     * يُقبل فرق حتى [ID_MINUTES_BEFORE] دقائق، ولا يُقبل معرّف بعد الوقت المعروض.
+     */
+    private fun idTimeMatches(hhmm: String, time: LocalTime): Boolean {
+        val id = runCatching { LocalTime.of(hhmm.substring(0, 2).toInt(), hhmm.substring(2, 4).toInt()) }.getOrNull() ?: return false
+        val shown = time.withSecond(0).withNano(0)
+        return !id.isAfter(shown) && !id.isBefore(shown.minusMinutes(ID_MINUTES_BEFORE))
+    }
+
+    private const val ID_MINUTES_BEFORE = 5L
 
     /**
      * مبالغ بنكيلي: الرقم الملاصق لـ«MRU». نافذة النجاح تكتب «المستفيد: <الهاتف> المبلغ المرسل: <المبلغ> MRU»، فالمبالغ

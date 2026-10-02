@@ -190,6 +190,22 @@ class NameDeciderTest {
     // ---- الحبر غير المقروء ----
 
     @Test
+    fun latinWord_tesseractBoxShortOfTheLastLetter_butMlKitAgreesAndCoversIt_isAccepted() {
+        // كما على S26: مربع Tesseract لـ«Fadel» ينتهي قبل حرفه الأخير، وML Kit يقرأ الكلمة نفسها بمربعها الكامل.
+        val a = 30..100; val ink = 125..215
+        val d = NameDecider.decide(listOf(tw("Yahya", 91, a), tw("Fadel", 92, 125..200)), image(a, ink), listOf(ml("Yahya", a), ml("Fadel", ink)))
+        assertEquals("Yahya Fadel", d.name)
+        assertTrue(DecisionNote.UNREAD_INK_PRESENT !in d.notes)
+    }
+
+    @Test
+    fun latinWord_tesseractBoxShort_andMlKitReadsADifferentWord_staysNull() {
+        val a = 30..100; val ink = 125..215
+        val d = NameDecider.decide(listOf(tw("Yahya", 91, a), tw("Fadel", 92, 125..200)), image(a, ink), listOf(ml("Yahya", a), ml("Fadil", ink)))
+        assertNull(d.name)
+    }
+
+    @Test
     fun latinName_unreadInkInsideTheName_isNull() {
         // حبر بين كلمتين لا يغطيه أي مربع كلمة؛ اسم لاتيني بالكامل ⇒ NULL.
         val a = 30..100; val gap = 105..118; val b = 125..200

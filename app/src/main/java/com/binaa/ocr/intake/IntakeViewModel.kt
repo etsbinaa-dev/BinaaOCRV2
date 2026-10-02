@@ -22,6 +22,7 @@ import com.binaa.ocr.core.receipt.ReceiptField
 import com.binaa.ocr.core.receipt.ReceiptReader
 import com.binaa.ocr.core.receipt.ReceiptReading
 import com.binaa.ocr.header.HeaderEngine
+import com.binaa.ocr.header.HeaderReading
 import com.binaa.ocr.header.HeaderResult
 import com.binaa.ocr.header.NameReason
 import com.binaa.ocr.header.NameStatus
@@ -44,7 +45,7 @@ sealed interface HeaderUi {
     data object Reading : HeaderUi
 
     /** النتيجة: FOUND بالاسم، أو NOT_FOUND بالسبب. لا مرشّحين ولا اختيار تلقائي. */
-    data class Done(val result: HeaderResult) : HeaderUi
+    data class Done(val result: HeaderResult, val rows: List<String> = emptyList()) : HeaderUi
 }
 
 /** المبلغ والتاريخ من الإيصال نفسه (بعد الاسم). */
@@ -194,8 +195,8 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
                     // التحليل يبدأ تلقائيًا: الاسم من رأس WhatsApp أولًا، ثم المبلغ والتاريخ من الإيصال. فك ترميز واحد في الذاكرة.
                     val bitmap = withContext(Dispatchers.IO) { decodeOrNull(result.image.file) }
                     try {
-                        val header = withContext(Dispatchers.Default) { readHeader(result.image.file, bitmap) }
-                        _state.update { if (it.image == result.image) it.copy(header = HeaderUi.Done(header)) else it }
+                        val (header, headerRows) = withContext(Dispatchers.Default) { readHeader(result.image.file, bitmap) }
+                        _state.update { if (it.image == result.image) it.copy(header = HeaderUi.Done(header, headerRows)) else it }
                         val (receipt, rows) = withContext(Dispatchers.Default) { readReceipt(bitmap, header) }
                         _state.update { if (it.image == result.image) it.copy(receipt = ReceiptUi.Done(receipt, rows), draft = draftOf(header, receipt)) else it }
                     } finally {
@@ -263,12 +264,37 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
      * Header Engine على اللقطة المحفوظة كاملة كما هي (فك ترميز في الذاكرة فقط، بلا قص ولا تصغير).
      * أي فشل (فك الترميز، الذاكرة، المحرك) ⇒ NOT_FOUND، ولا استثناء يصل إلى الواجهة. لا سجلات.
      */
-    private fun readHeader(file: File, bitmap: Bitmap?): HeaderResult = try {
-        readHeaderOverride?.invoke(file) ?: headerEngine.read(checkNotNull(bitmap)).result
+    private fun readHeader(file: File, bitmap: Bitmap?): Pair<HeaderResult, List<String>> = try {
+        readHeaderOverride?.invoke(file)?.let { it to emptyList() }
+            ?: headerEngine.read(checkNotNull(bitmap)).let { it.result to headerRows(it) }
     } catch (e: Exception) {
-        NOT_READ
+        NOT_READ to emptyList()
     } catch (e: OutOfMemoryError) {
-        NOT_READ
+        NOT_READ to emptyList()
+    }
+
+    /**
+     * للتشخيص فقط (يُعرض على شاشة المستخدم، لا يُسجَّل ولا يُحفظ): قرار الاسم، ثم كلمات كل محرك بثقتها وحدّيها
+     * في الصورة المجهّزة، من اليسار إلى اليمين.
+     */
+    private fun headerRows(reading: HeaderReading): List<String> {
+        val r = reading.result
+        val d = r.decision
+        val head = buildString {
+            append("name: ").append(r.reason ?: r.status)
+            r.detectorRejection?.let { append(" rejection=").append(it) }
+            reading.failure?.let { append(" failure=").append(it) }
+            if (d != null) {
+                append(" code=").append(d.code)
+                if (d.notes.isNotEmpty()) append(" notes=").append(d.notes.joinToString(","))
+                if (d.dropped.isNotEmpty()) append(" dropped=").append(d.dropped.joinToString(",") { "${it.index}:${it.code}" })
+            }
+        }
+        // القراءة الثانية (لاتيني أولًا) تظهر «TESSERACT 2».
+        return listOf(head) + reading.evidence.mapIndexed { i, e ->
+            val pass = reading.evidence.take(i).count { it.source == e.source }
+            "${e.source}${if (pass > 0) " ${pass + 1}" else ""}: " + e.words.joinToString("  ") { w -> "«${w.text}»" + (w.confidence?.let { " $it" } ?: "") + " x${w.left}-${w.right}" }
+        }
     }
 
     private fun decodePreview(image: StoredImage): ImageBitmap? {

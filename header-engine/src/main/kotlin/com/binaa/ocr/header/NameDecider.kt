@@ -102,8 +102,11 @@ object NameDecider {
         val dark = { x: Int, yy: Int -> img.pixels[yy * img.width + x] < 128 }
         val inkCols = (0 until img.width).filter { x -> (0 until img.height).any { dark(x, it) } }
         val runs = mutableListOf<IntRange>(); var start = -1; var blank = 0; var last = -1
+        // مربع كلمة Tesseract قد يقصر عن حرفها الأخير (حرف أخير خارج المربع على S26): إذا قرأ ML Kit الكلمة نفسها بالنص نفسه،
+        // فحبرها داخل مربع ML Kit مقروء أيضًا. لا يغيّر نصًا ولا يضيف كلمة.
+        val covered = words.map { it.left..it.right } + words.mapNotNull { w -> agreeingMlWord(w, ml)?.let { it.left..it.right } }
         for (x in 0 until img.width) {
-            val read = words.any { x in (it.left - 2)..(it.right + 2) }
+            val read = covered.any { x in (it.first - 2)..(it.last + 2) }
             val ink = !read && (0 until img.height).any { dark(x, it) }
             if (ink) { if (start < 0) start = x; last = x; blank = 0 }
             else if (start >= 0 && ++blank > 3) { runs += start..last; start = -1 }
@@ -196,6 +199,13 @@ object NameDecider {
             norm(w.text) == norm(m.text) -> null to DropCode.L_I_UNRESOLVED
             else -> null to DropCode.MLKIT_DIFFERS
         }
+    }
+
+    /** كلمة ML Kit فوق [w] بالنص نفسه (أو بفرق l/I/1 فقط) وبعرض متقارب، أو null. */
+    private fun agreeingMlWord(w: TessWord, ml: List<MlWord>): MlWord? {
+        val m = ml.maxByOrNull { overlap(w, it) }?.takeIf { overlap(w, it) * 2 >= minOf(w.right - w.left, it.right - it.left) } ?: return null
+        val ratio = (m.right - m.left).toDouble() / (w.right - w.left).coerceAtLeast(1)
+        return m.takeIf { ratio in 0.7..1.43 && (w.text == m.text || norm(w.text) == norm(m.text)) }
     }
 
     private fun overlap(w: TessWord, m: MlWord) = (minOf(w.right, m.right) - maxOf(w.left, m.left)).coerceAtLeast(0)

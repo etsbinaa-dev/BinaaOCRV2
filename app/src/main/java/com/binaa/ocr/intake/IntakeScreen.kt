@@ -186,7 +186,7 @@ private fun Received(state: IntakeUiState, onEdit: ((PaymentDraft) -> PaymentDra
         val header = state.header
         if (draft != null && header is HeaderUi.Done) {
             ReviewForm(draft, header, onEdit)
-            (state.receipt as? ReceiptUi.Done)?.rows?.let { ReadingDetails(it) }
+            ReadingDetails(header.rows + ((state.receipt as? ReceiptUi.Done)?.rows ?: emptyList()))
         } else {
             state.header?.let { HeaderSection(it) }
             state.receipt?.let { Spacer(Modifier.height(8.dp)); ReceiptSection(it) }

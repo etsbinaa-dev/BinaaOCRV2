@@ -180,6 +180,29 @@ class ReceiptReaderTest {
     }
 
     @Test
+    fun bankily_idCreatedAMinuteBeforeTheShownTime_stillConfirmsTheDate() {
+        // كما على S26: المعرّف «…2509141014…» والوقت المعروض «10:15:42».
+        val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), id = "1125091410141234567")
+        assertEquals(ReceiptField.found(PaymentDate(LocalDate.of(2025, 9, 14), LocalTime.of(10, 15, 42))), r.date)
+        assertEquals(ReceiptField.found(amount("4500.00")), r.amount)
+    }
+
+    @Test
+    fun bankily_idLongBeforeOrAfterTheShownTime_isNotBankily() {
+        for (id in listOf("1125091410091234567", "1125091410161234567")) {
+            val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), id = id)
+            assertEquals(id, FieldStatus.NOT_FOUND, r.provider.status)
+        }
+    }
+
+    @Test
+    fun bankily_arabicResidueGluedToTheAmount_isStillTheAmount() {
+        // كما في «تفاصيل القراءة»: «MRU» «4500:al» «ilall».
+        val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500:al", 275, 1032), W("ilall", 600, 1032)))
+        assertEquals(ReceiptField.found(amount("4500.00")), r.amount)
+    }
+
+    @Test
     fun bankily_dateInsideALongerNumber_isNotADate() {
         val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), date = "125-09-145")
         assertEquals(FieldStatus.NOT_FOUND, r.provider.status)
