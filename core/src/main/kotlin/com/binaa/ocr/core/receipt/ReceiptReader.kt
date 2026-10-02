@@ -181,7 +181,8 @@ object ReceiptReader {
         if (ids.isEmpty()) return emptyList()
         return rows.flatMap { row ->
             val time = timeIn(row) ?: return@flatMap emptyList()
-            row.mapNotNull { SHORT_DATE.matchEntire(it.text) }.flatMap { m ->
+            // «26-10-02:cöglg»: ML Kit قد يُلصق بالتاريخ بقايا الكلمة العربية المجاورة، فيُؤخذ التاريخ من داخل الكلمة.
+            row.flatMap { SHORT_DATE.findAll(it.text) }.flatMap { m ->
                 val (a, mm, c) = m.destructured
                 val hhmm = time.hour.toString().padStart(2, '0') + time.minute.toString().padStart(2, '0')
                 listOf(Triple(a, mm, c), Triple(c, mm, a)).distinct().mapNotNull { (yy, month, dd) ->
@@ -269,7 +270,7 @@ object ReceiptReader {
 
     private val BANKILY_ID = Regex("""\d{19}""")
     private val PHONE = Regex("""[234]\d{7}""")
-    private val SHORT_DATE = Regex("""(\d{2})-(\d{2})-(\d{2})""")
+    private val SHORT_DATE = Regex("""(?<!\d)(\d{2})-(\d{2})-(\d{2})(?!\d)""")
     /** DD-MM-YYYY أو DD/MM/YYYY (الفاصل نفسه مرتين). */
     private val LONG_DATE = Regex("""(\d{2})([-/])(\d{2})\2(\d{4})""")
     private val TIME = Regex("""(\d{2}):(\d{2})(?::(\d{2}))?""")

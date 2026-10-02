@@ -167,6 +167,25 @@ class ReceiptReaderTest {
     }
 
     @Test
+    fun bankily_arabicGarbageGluedToTheDate_isStillConfirmedByTheTransactionId() {
+        // كما في «تفاصيل القراءة»: «MRU» «4500» «Lal» ثم المعرّف ثم «10:15:42» «25-09-14:cöglg» «yl».
+        val r = read(
+            W("MRU", 164, 944), W("4500", 275, 944), W("Lal", 600, 944),
+            W("1125091410151234567", 148, 1174),
+            W("10:15:42", 208, 1228), W("25-09-14:cöglg", 404, 1228), W("yl", 800, 1228),
+        )
+        assertEquals(ReceiptField.found(Provider.BANKILY), r.provider)
+        assertEquals(ReceiptField.found(amount("4500.00")), r.amount)
+        assertEquals(ReceiptField.found(PaymentDate(LocalDate.of(2025, 9, 14), LocalTime.of(10, 15, 42))), r.date)
+    }
+
+    @Test
+    fun bankily_dateInsideALongerNumber_isNotADate() {
+        val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), date = "125-09-145")
+        assertEquals(FieldStatus.NOT_FOUND, r.provider.status)
+    }
+
+    @Test
     fun masrviPopup_amountAfterEnvoye_notTheTotalTtc() {
         // «Vous avez envoyé 12500.00 MRU le / 03/08/2026 11:48:34 (total TTC: / 12556.50 MRU) à … / (REF…) / Masrvi».
         val r = read(
