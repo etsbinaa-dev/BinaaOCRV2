@@ -72,8 +72,8 @@ data class ReceiptReading(
 /**
  * المبلغ والتاريخ من نص إيصال الدفع (ML Kit على اللقطة كاملة)، لثلاثة تطبيقات بصيغها المعروفة فقط:
  *
- * - **بنكيلي**: يُعرَف بمعرّف المعاملة (19 رقمًا) الذي يحمل تاريخ ووقت العملية YYMMDDhhmm بعد أول رقمين، ويطابق
- *   سطر «التاريخ والوقت» YY-MM-DD hh:mm:ss. المطابقة نفسها تؤكد ترتيب التاريخ. المبلغ = الرقم الملاصق لـ«MRU»
+ * - **بنكيلي** (بالعربية أو الفرنسية): يُعرَف بمعرّف المعاملة (19 رقمًا) الذي يحمل تاريخ ووقت العملية YYMMDDhhmm بعد أول
+ *   رقمين، ويطابق سطر التاريخ والوقت (YY-MM-DD أو DD-MM-YY، hh:mm:ss). المطابقة نفسها تحسم ترتيب التاريخ. المبلغ = الرقم الملاصق لـ«MRU»
  *   (في سطره، أو آخر رقم من جهة اليسار في السطر السابق إن نزلت MRU وحدها إلى سطر جديد).
  * - **BIMBANK** و**السداد**: يُعرفان بشعارهما المكتوب لاتينيًا. المبلغ بصيغة 74.650,00؛ التاريخ DD-MM-YYYY.
  *
@@ -128,17 +128,22 @@ object ReceiptReader {
 
     // ------------------------------------------------------------------ بنكيلي
 
-    /** تواريخ بنكيلي التي يؤكدها معرّف المعاملة: YY-MM-DD hh:mm في السطر = الأرقام 3–12 من المعرّف. */
+    /**
+     * تواريخ بنكيلي التي يؤكدها معرّف المعاملة (الأرقام 3–12 = YYMMDDhhmm). الواجهة العربية تُظهر YY-MM-DD والفرنسية DD-MM-YY:
+     * يُجرَّب الترتيبان، ويُقبل فقط ما يطابق المعرّف، فالمعرّف نفسه يحسم الترتيب.
+     */
     private fun bankilyDates(words: List<Token>, rows: List<List<Token>>): List<PaymentDate> {
         val ids = words.filter { BANKILY_ID.matches(it.text) }.map { it.text.substring(2, 12) }.toSet()
         if (ids.isEmpty()) return emptyList()
         return rows.flatMap { row ->
             val time = timeIn(row) ?: return@flatMap emptyList()
-            row.mapNotNull { SHORT_DATE.matchEntire(it.text) }.mapNotNull { m ->
-                val (yy, mm, dd) = m.destructured
-                val stamp = yy + mm + dd + "%02d%02d".format(time.hour, time.minute)
-                if (stamp !in ids) return@mapNotNull null
-                runCatching { PaymentDate(LocalDate.of(2000 + yy.toInt(), mm.toInt(), dd.toInt()), time) }.getOrNull()
+            row.mapNotNull { SHORT_DATE.matchEntire(it.text) }.flatMap { m ->
+                val (a, mm, c) = m.destructured
+                val hhmm = time.hour.toString().padStart(2, '0') + time.minute.toString().padStart(2, '0')
+                listOf(Triple(a, mm, c), Triple(c, mm, a)).distinct().mapNotNull { (yy, month, dd) ->
+                    if (yy + month + dd + hhmm !in ids) return@mapNotNull null
+                    runCatching { PaymentDate(LocalDate.of(2000 + yy.toInt(), month.toInt(), dd.toInt()), time) }.getOrNull()
+                }
             }
         }
     }

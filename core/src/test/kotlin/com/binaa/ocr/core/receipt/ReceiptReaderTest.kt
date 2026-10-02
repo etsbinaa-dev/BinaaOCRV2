@@ -88,6 +88,26 @@ class ReceiptReaderTest {
     }
 
     @Test
+    fun bankilyInFrench_dayMonthYear_isConfirmedByTheTransactionId() {
+        // «Receveur: … / Montant envoyé: 1860 MRU / Trs ID … / Date et heure : 14-09-25 10:15:42» (يوم-شهر-سنة).
+        val r = read(
+            W("34111222", 560, 468),
+            W("1860", 430, 486), W("MRU", 520, 486),
+            W("1125091410151234567", 480, 520),
+            W("14-09-25", 470, 538), W("10:15:42", 560, 538),
+        )
+        assertEquals(ReceiptField.found(Provider.BANKILY), r.provider)
+        assertEquals(ReceiptField.found(amount("1860.00")), r.amount)
+        assertEquals(ReceiptField.found(PaymentDate(LocalDate.of(2025, 9, 14), LocalTime.of(10, 15, 42))), r.date)
+    }
+
+    @Test
+    fun bankily_dateMatchingTheIdInNeitherOrder_isNotRead() {
+        val r = read(W("4500", 430, 486), W("MRU", 520, 486), W("1125091410151234567", 480, 520), W("15-09-25", 470, 538), W("10:15:42", 560, 538))
+        assertEquals(FieldStatus.NOT_FOUND, r.provider.status)
+    }
+
+    @Test
     fun bankily_impossibleDate_isNotRead() {
         val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), id = "1125139910151234567", date = "25-13-99")
         assertEquals(FieldStatus.NOT_FOUND, r.provider.status)
