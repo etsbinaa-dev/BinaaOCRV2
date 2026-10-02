@@ -47,10 +47,13 @@ class HeaderEngineInstrumentedTest {
     }
 
     @Test
-    fun arabicName_isFoundExactly_orNotFound_neverAnotherName() {
+    fun arabicName_isFoundExactly_orMarkedApproximate_orNotFound() {
         val r = read("سالم")
-        if (r.result.status == NameStatus.FOUND) assertEquals("سالم", r.result.name)
-        else assertEquals(NameReason.NAME_UNREADABLE, r.result.reason)
+        when {
+            r.result.approximate -> assertTrue(r.result.name!!.isNotBlank())
+            r.result.status == NameStatus.FOUND -> assertEquals("سالم", r.result.name)
+            else -> assertEquals(NameReason.NAME_UNREADABLE, r.result.reason)
+        }
         assertNull(r.failure)
         assertTrue(r.evidence[0].words.isNotEmpty())
     }

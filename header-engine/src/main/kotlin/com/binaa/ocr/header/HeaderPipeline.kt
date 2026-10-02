@@ -72,7 +72,7 @@ object HeaderPipeline {
 
         val decision = decide(tess.words, gray, ml.words)
         if (decision.name != null || latinFirst == null || tess.words.none { w -> w.text.any { isLatinLetter(it) } }) {
-            return HeaderReading(HeaderResult.of(detection, decision), listOf(tess, ml), null)
+            return HeaderReading(HeaderResult.of(detection, orApproximate(decision, tess.words, ml.words)), listOf(tess, ml), null)
         }
 
         // القراءة الثانية (لاتيني أولًا). أي فشل فيها ⇒ تبقى نتيجة القراءة الأولى.
@@ -80,12 +80,27 @@ object HeaderPipeline {
             latinFirst.read(gray)?.let { tesseractEvidence(it, latinFirstInfo) }
         } catch (e: Exception) {
             null
-        } ?: return HeaderReading(HeaderResult.of(detection, decision), listOf(tess, ml), null)
+        } ?: return HeaderReading(HeaderResult.of(detection, orApproximate(decision, tess.words, ml.words)), listOf(tess, ml), null)
         val (words, image2, mlLatin) = withoutTrailingContactTag(second.words, gray, ml.words)
         val latin = decide(words, image2, mlLatin)
         val accepted = latin.name != null && latin.code == DecisionCode.NAME_ACCEPTED &&
             DecisionNote.LATIN_CONFIRMED_BY_MLKIT in latin.notes && latin.name.none { NameDecider.isAr(it) }
-        return HeaderReading(HeaderResult.of(detection, if (accepted) latin else decision), listOf(tess, ml, second), null)
+        // اسم لاتيني بالكامل: القراءة الثانية (لاتيني أولًا) أفضل أساس للاسم التقريبي.
+        val approxBase = if (tess.words.none { w -> w.text.any { NameDecider.isAr(it) } }) second.words else tess.words
+        return HeaderReading(HeaderResult.of(detection, if (accepted) latin else orApproximate(decision, approxBase, ml.words)), listOf(tess, ml, second), null)
+    }
+
+    /**
+     * لا اسم بالقواعد الصارمة ⇒ اسم تقريبي ([NameDecider.approximate]) إن بقي ما يُقرأ: الهدف معرفة المرسل، والمستخدم يراجع.
+     * الكلمات المحذوفة والملاحظات من القرار الصارم تبقى للتشخيص.
+     */
+    private fun orApproximate(strict: NameDecision, tess: List<EvidenceWord>, ml: List<EvidenceWord>): NameDecision {
+        if (strict.name != null) return strict
+        val approx = NameDecider.approximate(
+            tess.map { TessWord(it.text, it.confidence ?: 0, it.left, it.right) },
+            ml.map { MlWord(it.text, it.left, it.right) },
+        ) ?: return strict
+        return approx.copy(dropped = strict.dropped, notes = strict.notes)
     }
 
     private fun decide(tess: List<EvidenceWord>, gray: GrayImage, ml: List<EvidenceWord>) = NameDecider.decide(

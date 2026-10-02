@@ -41,6 +41,9 @@ data class HeaderResult(
     override fun toString() =
         "HeaderResult($status, name=${if (name == null) "null" else "<${name.length} chars>"}, reason=$reason, rejection=$detectorRejection, decision=$decision)"
 
+    /** الاسم قراءة تقريبية (القواعد الصارمة لم تؤكده): يظهر مع تنبيه «راجعه». */
+    val approximate: Boolean get() = status == NameStatus.FOUND && decision?.code == DecisionCode.NAME_APPROXIMATE
+
     /** null إذا لم يُكتشف رأس. */
     val direction: PaymentDirection?
         get() = when {

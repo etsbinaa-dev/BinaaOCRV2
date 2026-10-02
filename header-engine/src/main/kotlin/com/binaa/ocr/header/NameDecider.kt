@@ -24,6 +24,8 @@ enum class DecisionCode {
     ALL_WORDS_UNRELIABLE,
     /** نقاط «…» في طرف البداية البصري: الاسم مقطوع من بدايته. */
     DOTS_AT_START,
+    /** القواعد الصارمة لم تعطِ اسمًا ⇒ أفضل قراءة تقريبية (يراجعها المستخدم). انظر [NameDecider.approximate]. */
+    NAME_APPROXIMATE,
 }
 
 /** لماذا حُذفت كلمة وحدها (لا تخمين ولا تصحيح). */
@@ -166,13 +168,8 @@ object NameDecider {
         if (!hasAr && (dropped.isNotEmpty() || unread.isNotEmpty())) return NameDecision(null, DecisionCode.LATIN_ALL_OR_NOTHING, dropped, inkNote)
         if (kept.none { it.second == Kind.AR || it.first != "Clt" }) return NameDecision(null, DecisionCode.ALL_WORDS_UNRELIABLE, dropped, inkNote)
 
-        // الترتيب البصري كما في WhatsApp: الكلمة اليسرى في السطر لاتينية الخط ⇒ LTR، وإلا RTL.
-        val ltr = core.first().first.value.text.let { t -> t.any { it.isLetter() && it.code < 0x250 } && t.none { isAr(it) } }
-        val groups = mutableListOf<MutableList<Pair<String, Kind>>>(); var gk: Kind? = null
-        val seq = if (ltr) kept else kept.asReversed()
-        for (p in seq) { if (p.second != gk) { groups += mutableListOf<Pair<String, Kind>>(); gk = p.second }; groups.last() += p }
-        val parts = groups.map { g -> val k = g.first().second; if ((ltr && k == Kind.AR) || (!ltr && k == Kind.LAT)) g.asReversed() else g }
-        var name = parts.flatten().joinToString(" ") { it.first }
+        val ltr = startsLtr(core.first().first.value.text)
+        var name = visualOrder(kept, ltr)
         // «…» في طرف النهاية البصري فقط.
         val dotWords = words.zip(kinds).filter { it.second == Kind.DOTS }.map { it.first }
         val dotsLeft = ellipsisLeft || dotWords.any { it.right <= core.first().first.value.left }
@@ -199,6 +196,51 @@ object NameDecider {
             norm(w.text) == norm(m.text) -> null to DropCode.L_I_UNRESOLVED
             else -> null to DropCode.MLKIT_DIFFERS
         }
+    }
+
+    /**
+     * اسم تقريبي حين لا تعطي القواعد الصارمة اسمًا: الهدف معرفة المرسل، لا الدقة الحرفية (المستخدم يراجع ويعدّل).
+     * - كلمة لاتينية أو مختلطة أو أرقام وسط اسم: نص ML Kit فوقها إن كان لاتينيًا (أدق في اللاتيني)، وإلا نص Tesseract اللاتيني.
+     * - كلمة عربية: نص Tesseract إن كانت ثقته ≥ [APPROX_MIN_CONFIDENCE] (أدنى منها غالبًا ضجيج).
+     * - أرقام فقط (هاتف): الأرقام كما قُرئت. النقاط والرموز تُهمل.
+     * @return NAME_APPROXIMATE بالاسم، أو null إن لم يبق شيء يُقرأ.
+     */
+    fun approximate(tesseract: List<TessWord>, ml: List<MlWord>): NameDecision? {
+        val words = tesseract.sortedBy { it.left }.filter { kind(it.text) != Kind.DOTS }
+        if (words.isEmpty()) {
+            val latin = ml.sortedBy { it.left }.map { it.text }.filter { kind(it) == Kind.LAT }
+            return latin.takeIf { it.isNotEmpty() }?.let { NameDecision(it.joinToString(" "), DecisionCode.NAME_APPROXIMATE) }
+        }
+        val allDigits = words.all { kind(it.text) == Kind.NUM }
+        val kept = words.mapNotNull { w ->
+            val k = kind(w.text)
+            val over = ml.maxByOrNull { overlap(w, it) }?.takeIf { overlap(w, it) > 0 && kind(it.text) == Kind.LAT }?.text
+            when {
+                w.text.lowercase() in TAGS || over?.replace('I', 'l')?.lowercase() in TAGS -> "Clt" to Kind.LAT
+                k == Kind.AR -> if (w.conf >= APPROX_MIN_CONFIDENCE) w.text to Kind.AR else null
+                k == Kind.NUM && allDigits -> w.text to Kind.NUM
+                over != null -> over to Kind.LAT
+                k == Kind.LAT && w.conf >= APPROX_MIN_CONFIDENCE -> w.text to Kind.LAT
+                else -> null
+            }
+        }
+        if (kept.none { it.first != "Clt" }) return null
+        // الكلمة اليسرى المقروءة غير عربية ⇒ LTR، كما في [decide].
+        return NameDecision(visualOrder(kept, ltr = kept.first().second != Kind.AR), DecisionCode.NAME_APPROXIMATE)
+    }
+
+    const val APPROX_MIN_CONFIDENCE = 50
+
+    /** الترتيب البصري كما في WhatsApp: الكلمة اليسرى في السطر لاتينية الخط ⇒ LTR، وإلا RTL. */
+    private fun startsLtr(t: String) = t.any { it.isLetter() && it.code < 0x250 } && t.none { isAr(it) }
+
+    /** [kept] من اليسار إلى اليمين ⇒ نص الاسم بترتيب القراءة. */
+    private fun visualOrder(kept: List<Pair<String, Kind>>, ltr: Boolean): String {
+        val groups = mutableListOf<MutableList<Pair<String, Kind>>>(); var gk: Kind? = null
+        val seq = if (ltr) kept else kept.asReversed()
+        for (p in seq) { if (p.second != gk) { groups += mutableListOf<Pair<String, Kind>>(); gk = p.second }; groups.last() += p }
+        val parts = groups.map { g -> val k = g.first().second; if ((ltr && k == Kind.AR) || (!ltr && k == Kind.LAT)) g.asReversed() else g }
+        return parts.flatten().joinToString(" ") { it.first }
     }
 
     /** كلمة ML Kit فوق [w] بالنص نفسه (أو بفرق l/I/1 فقط) وبعرض متقارب، أو null. */

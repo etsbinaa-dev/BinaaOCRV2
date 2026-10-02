@@ -226,6 +226,7 @@ private fun HeaderSection(header: HeaderUi) {
                 val name = result.name
                 if (result.status == NameStatus.FOUND && name != null) {
                     Text(name, style = MaterialTheme.typography.titleMedium, color = colors.text, modifier = Modifier.testTag("intake-header-name"))
+                    if (result.approximate) Text(stringResource(R.string.header_name_approximate), style = MaterialTheme.typography.bodyMedium, color = colors.textMuted)
                 } else {
                     Text(stringResource(R.string.header_not_found), style = MaterialTheme.typography.titleMedium, color = colors.text)
                     val hint = when (result.reason) {
@@ -260,7 +261,7 @@ private fun ReviewForm(draft: PaymentDraft, header: HeaderUi.Done, onEdit: ((Pay
         NameReason.NAME_UNREADABLE -> R.string.header_reason_unreadable
         NameReason.SENT_BY_YOU -> R.string.header_reason_sent_by_you
         NameReason.HEADER_NOT_DETECTED -> R.string.header_reason_not_detected
-        null -> null
+        null -> if (header.result.approximate) R.string.header_name_approximate else null
     }
     Column(Modifier.fillMaxWidth().testTag("intake-review"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(

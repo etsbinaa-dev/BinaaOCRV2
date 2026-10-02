@@ -98,11 +98,18 @@ class HeaderPipelineTest {
     }
 
     @Test
-    fun latinName_mlKitDisagrees_isNotFound_nameUnreadable() {
+    fun latinName_mlKitDisagrees_isApproximate_withMlKitsReading() {
         val r = run(viewer(three), FakeTess(listOf("Zyxwq", "Qwerty", "Abc")), FakeMl(listOf("Zyxwq", "Qwertv", "Abc")))
-        assertEquals(NameStatus.NOT_FOUND, r.result.status)
-        assertEquals(NameReason.NAME_UNREADABLE, r.result.reason)
-        assertEquals(DecisionCode.LATIN_ALL_OR_NOTHING, r.result.decision!!.code)
+        assertEquals(NameStatus.FOUND, r.result.status)
+        assertEquals("Zyxwq Qwertv Abc", r.result.name)
+        assertTrue(r.result.approximate)
+        assertEquals(DecisionCode.NAME_APPROXIMATE, r.result.decision!!.code)
+    }
+
+    @Test
+    fun strictlyAcceptedName_isNotApproximate() {
+        val r = run(viewer(three), FakeTess(listOf("نور", "كريم", "سالم")), FakeMl(listOf(null, null, null)))
+        assertEquals(false, r.result.approximate)
     }
 
     @Test
@@ -144,10 +151,20 @@ class HeaderPipelineTest {
     }
 
     @Test
-    fun allArabicWordsLowConfidence_isNotFound() {
+    fun allArabicWordsLowConfidence_isApproximate() {
+        // كما على S26: اسمان عربيان بثقة 84–89 ⇒ الاسم تقريبي بدل فراغ.
         val r = run(viewer(three), FakeTess(listOf("نور", "كريم", "سالم"), listOf(80, 85, 89)), FakeMl(listOf(null, null, null)))
-        assertEquals(NameReason.NAME_UNREADABLE, r.result.reason)
-        assertNull(r.result.name)
+        assertEquals("سالم كريم نور", r.result.name)
+        assertTrue(r.result.approximate)
+    }
+
+    @Test
+    fun arabicNoiseBelowTheApproximateFloor_isDropped_allNoise_isNotFound() {
+        val some = run(viewer(three), FakeTess(listOf("نور", "كريم", "سالم"), listOf(30, 85, 89)), FakeMl(listOf(null, null, null)))
+        assertEquals("سالم كريم", some.result.name)
+        val none = run(viewer(three), FakeTess(listOf("نور", "كريم", "سالم"), listOf(30, 40, 49)), FakeMl(listOf(null, null, null)))
+        assertEquals(NameReason.NAME_UNREADABLE, none.result.reason)
+        assertNull(none.result.name)
     }
 
     // ------------------------------------------------------------------ لا رأس ⇒ لا OCR
@@ -321,15 +338,15 @@ class HeaderPipelineTest {
     }
 
     @Test
-    fun latinFirstPass_mlKitDisagrees_staysNotFound() {
+    fun latinFirstPass_mlKitDisagrees_isApproximate() {
         val r = run2(
             viewer(three),
             FakeTess(listOf("Zyxwq", "862610", "Abc")),
             FakeMl(listOf("Zyxwq", "Qwertv", "Abc")),
             FakeTess(listOf("Zyxwq", "Qwerty", "Abc")),
         )
-        assertEquals(NameStatus.NOT_FOUND, r.result.status)
-        assertEquals(NameReason.NAME_UNREADABLE, r.result.reason)
+        assertEquals("Zyxwq Qwertv Abc", r.result.name)
+        assertTrue(r.result.approximate)
     }
 
     @Test
@@ -341,8 +358,10 @@ class HeaderPipelineTest {
             FakeMl(listOf(null, "CIt", null)),
             FakeTess(listOf("نور", "Cit", "سالم")),
         )
-        assertEquals(NameStatus.NOT_FOUND, r.result.status)
-        assertEquals(DecisionCode.ALL_WORDS_UNRELIABLE, r.result.decision!!.code)
+        // الصارم لا يقبل شيئًا ⇒ تقريبي من القراءة الأولى (لا من الثانية).
+        assertEquals("سالم Clt نور", r.result.name)
+        assertTrue(r.result.approximate)
+        assertEquals(listOf(DroppedWord(0, DropCode.ARABIC_LOW_CONFIDENCE), DroppedWord(2, DropCode.ARABIC_LOW_CONFIDENCE)), r.result.decision!!.dropped)
     }
 
     @Test
@@ -363,8 +382,9 @@ class HeaderPipelineTest {
             FakeMl(listOf("Zyxwq", "Qwerty", "Abc")),
             FakeTess(listOf("x", "y", "z"), fail = true),
         )
-        assertEquals(NameStatus.NOT_FOUND, r.result.status)
-        assertEquals(NameReason.NAME_UNREADABLE, r.result.reason)
+        // الثانية فشلت ⇒ يبقى القرار من القراءة الأولى: تقريبي بنص ML Kit مكان الأرقام.
+        assertEquals("Zyxwq Qwerty Abc", r.result.name)
+        assertTrue(r.result.approximate)
         assertNull(r.failure)
     }
 
