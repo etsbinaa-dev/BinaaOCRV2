@@ -45,6 +45,19 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.binaa.ocr.core.archive.PaymentStatus
+import com.binaa.ocr.core.archive.PaymentStore
 import com.binaa.ocr.R
 import com.binaa.ocr.core.intake.IntakePhase
 import com.binaa.ocr.core.intake.IntakeRejection
@@ -100,6 +113,7 @@ fun IntakeScreen(
         }
         val draft = state.draft
         if (draft != null) {
+            state.duplicate?.let { DuplicateWarning(it) }
             // «حفظ» إلى «للإدخال»، ويعمل فقط حين يكتمل الاسم والمبلغ والتاريخ والاتجاه. ✕ في الأعلى = إلغاء بلا حفظ.
             Button(
                 onClick = onSave,
@@ -108,7 +122,7 @@ fun IntakeScreen(
                 shape = MaterialTheme.shapes.medium,
                 colors = ButtonDefaults.buttonColors(containerColor = colors.brand),
             ) {
-                Text(stringResource(R.string.intake_save), style = MaterialTheme.typography.labelLarge, color = colors.onBrand)
+                Text(stringResource(if (state.duplicate != null) R.string.intake_save_anyway else R.string.intake_save), style = MaterialTheme.typography.labelLarge, color = colors.onBrand)
             }
         } else {
             OutlinedButton(
@@ -156,7 +170,8 @@ private fun Received(state: IntakeUiState, onEdit: ((PaymentDraft) -> PaymentDra
     val colors = Binaa.colors
     val image = state.image ?: return
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
-        // اللقطة كاملة كما وصلت (Fit: لا قص في العرض أيضًا).
+        // اللقطة كاملة كما وصلت (Fit: لا قص في العرض أيضًا). لمسة ⇒ ملء الشاشة مع تكبير.
+        var zoomed by rememberSaveable { mutableStateOf(false) }
         state.preview?.let { preview ->
             Image(
                 bitmap = preview,
@@ -167,8 +182,11 @@ private fun Received(state: IntakeUiState, onEdit: ((PaymentDraft) -> PaymentDra
                     .fillMaxWidth()
                     .clip(MaterialTheme.shapes.large)
                     .border(1.dp, colors.divider, MaterialTheme.shapes.large)
+                    .clickable { zoomed = true }
                     .testTag("intake-preview"),
             )
+            Text(stringResource(R.string.intake_zoom_hint), style = MaterialTheme.typography.bodySmall, color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
+            if (zoomed) ZoomedImage(preview) { zoomed = false }
         }
         Spacer(Modifier.height(16.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -442,5 +460,57 @@ private fun Rejected(reason: IntakeRejection) {
             textAlign = TextAlign.Center,
             modifier = Modifier.testTag("intake-rejection"),
         )
+    }
+}
+
+/** تنبيه فقط: دفعة محفوظة تشبه هذه. الحفظ يبقى ممكنًا («احفظ رغم ذلك»). */
+@Composable
+private fun DuplicateWarning(d: PaymentStore.Duplicate) {
+    val colors = Binaa.colors
+    val where = stringResource(if (d.record.status == PaymentStatus.ARCHIVED) R.string.duplicate_in_archive else R.string.duplicate_in_pending)
+    val text = if (d.sameImage) stringResource(R.string.duplicate_same_image, where, d.record.name, d.record.amountText, d.record.date)
+    else stringResource(R.string.duplicate_same_values, where)
+    Text(
+        "⚠ $text",
+        style = MaterialTheme.typography.bodyMedium,
+        color = colors.text,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+            .background(colors.uncertainBackground, MaterialTheme.shapes.medium)
+            .border(1.dp, colors.uncertainBorder, MaterialTheme.shapes.medium)
+            .padding(12.dp)
+            .testTag("intake-duplicate"),
+    )
+}
+
+/** اللقطة على الشاشة كلها: قرصة للتكبير (حتى 5×) والسحب للتنقل، ولمستان للتكبير/الرجوع. ✕ أو «رجوع» تغلق. */
+@Composable
+private fun ZoomedImage(image: ImageBitmap, onClose: () -> Unit) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset.Zero) }
+        Box(Modifier.fillMaxSize().background(Color.Black).testTag("intake-zoom")) {
+            Image(
+                bitmap = image,
+                contentDescription = stringResource(R.string.intake_preview_description),
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 5f)
+                            offset = if (scale == 1f) Offset.Zero else offset + pan
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        detectTapGestures(onDoubleTap = { if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f })
+                    }
+                    .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
+            )
+            TextButton(onClick = onClose, modifier = Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(8.dp)) {
+                Text("✕", style = MaterialTheme.typography.titleLarge, color = Color.White)
+            }
+        }
     }
 }

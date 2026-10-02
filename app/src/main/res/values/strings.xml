@@ -64,6 +64,12 @@
 
     <!-- المراجعة والحفظ -->
     <string name="intake_save">حفظ</string>
+    <string name="intake_save_anyway">احفظ رغم ذلك</string>
+    <string name="duplicate_same_image">هذه اللقطة محفوظة من قبل في «%1$s»: %2$s، %3$s MRU، %4$s.</string>
+    <string name="duplicate_same_values">دفعة بنفس الاسم والمبلغ والتاريخ محفوظة من قبل في «%1$s».</string>
+    <string name="duplicate_in_pending">للإدخال</string>
+    <string name="duplicate_in_archive">الأرشيف</string>
+    <string name="intake_zoom_hint">المس الصورة لتكبيرها</string>
     <string name="receipt_name">الاسم</string>
     <string name="receipt_amount_mru">المبلغ (MRU)</string>
     <string name="receipt_date_format">التاريخ YYYY-MM-DD</string>

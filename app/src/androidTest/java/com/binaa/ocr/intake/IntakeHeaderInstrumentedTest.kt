@@ -180,7 +180,9 @@ class IntakeHeaderInstrumentedTest {
         }
         val bytes = png(bitmap)
         share(insert("sedad", bytes))
-        val draft = awaitState { it.draft != null }.draft!!
+        val first = awaitState { it.draft != null }
+        assertNull("nothing saved yet", first.duplicate)
+        val draft = first.draft!!
         // ما قُرئ بيقين يملأ المراجعة.
         assertEquals(NAME, draft.name)
         assertEquals("3150", draft.amount)
@@ -211,6 +213,16 @@ class IntakeHeaderInstrumentedTest {
         store.markEntered(saved.id)
         assertTrue(store.pending().isEmpty())
         assertEquals(PaymentStatus.ARCHIVED, store.archived().single().status)
+
+        // نفس اللقطة مرة ثانية ⇒ تنبيه «محفوظة من قبل» (من الأرشيف)، والحفظ يبقى ممكنًا.
+        share(insert("sedad-again", bytes))
+        val again = awaitState { it.draft != null }
+        assertEquals(saved.id, again.duplicate!!.record.id)
+        assertTrue(again.duplicate!!.sameImage)
+        assertEquals(PaymentStatus.ARCHIVED, again.duplicate!!.record.status)
+        assertTrue(again.draft!!.canSave)
+        val second = currentIntake()!!
+        instrumentation.runOnMainSync { second.viewModel.close() }
     }
 
     @Test

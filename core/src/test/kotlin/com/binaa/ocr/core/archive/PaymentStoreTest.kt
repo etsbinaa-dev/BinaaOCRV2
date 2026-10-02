@@ -81,6 +81,35 @@ class PaymentStoreTest {
         assertTrue(store.dir.listFiles()!!.none { it.name.endsWith(".tmp") })
     }
 
+    @Test
+    fun theSameScreenshotSavedBefore_isADuplicate_evenWithOtherValues() {
+        val first = save(img = image("a.png", byteArrayOf(5, 5, 5)))
+        assertEquals(PaymentStore.sha256(store.imageOf(first)), first.imageSha256)
+        val again = image("b.png", byteArrayOf(5, 5, 5))
+        val d = store.duplicatesOf(PaymentStore.sha256(again), "Someone Else", 100, LocalDate.of(2020, 1, 1))
+        assertEquals(listOf(PaymentStore.Duplicate(first, sameImage = true)), d)
+    }
+
+    @Test
+    fun sameNameAmountAndDate_isADuplicate_ignoringCaseAndSpaces() {
+        val first = save(name = "Karim Saleh", cents = 620000, date = LocalDate.of(2026, 10, 1))
+        val d = store.duplicatesOf(null, "  karim   SALEH ", 620000, LocalDate.of(2026, 10, 1))
+        assertEquals(listOf(PaymentStore.Duplicate(first, sameImage = false)), d)
+        // اسم أو مبلغ أو تاريخ مختلف ⇒ ليست مكررة.
+        assertTrue(store.duplicatesOf(null, "Karim Salem", 620000, LocalDate.of(2026, 10, 1)).isEmpty())
+        assertTrue(store.duplicatesOf(null, "Karim Saleh", 620100, LocalDate.of(2026, 10, 1)).isEmpty())
+        assertTrue(store.duplicatesOf(null, "Karim Saleh", 620000, LocalDate.of(2026, 10, 2)).isEmpty())
+        assertTrue("incomplete draft", store.duplicatesOf(null, "Karim Saleh", null, LocalDate.of(2026, 10, 1)).isEmpty())
+    }
+
+    @Test
+    fun aRecordWithoutAnImageHash_fromAnOlderVersion_isStillRead() {
+        val r = save()
+        val json = File(store.dir, "${r.id}.json")
+        json.writeText(json.readText().replace(Regex(""",\s*"imageSha256":\s*"[0-9a-f]+""""), ""))
+        assertEquals(null, store.list().single().imageSha256)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun aBlankName_isRefused() {
         save(name = "  ")

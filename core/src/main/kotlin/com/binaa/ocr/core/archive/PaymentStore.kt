@@ -3,6 +3,7 @@ package com.binaa.ocr.core.archive
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.UUID
@@ -28,6 +29,8 @@ data class PaymentRecord(
     val image: String,
     val status: PaymentStatus = PaymentStatus.PENDING,
     val archivedAtMillis: Long? = null,
+    /** SHA-256 لصورة الإيصال كما وصلت: نفس اللقطة مرتين ⇒ نفس البصمة. null في السجلات الأقدم. */
+    val imageSha256: String? = null,
 ) {
     init {
         require(ID.matches(id)) { "bad id" }
@@ -39,6 +42,7 @@ data class PaymentRecord(
         require(direction == null || direction in DIRECTIONS) { "unknown direction" }
         require(IMAGE.matches(image)) { "bad image file name" }
         require((status == PaymentStatus.ARCHIVED) == (archivedAtMillis != null)) { "archivedAt only for archived" }
+        require(imageSha256 == null || SHA256.matches(imageSha256)) { "bad image hash" }
     }
 
     /** للعرض: «6200» أو «6200.50». */
@@ -50,6 +54,7 @@ data class PaymentRecord(
         private val ID = Regex("""[0-9a-f-]{36}""")
         private val TIME = Regex("""\d{2}:\d{2}""")
         private val IMAGE = Regex("""[0-9a-f-]{36}\.(png|jpg|webp)""")
+        private val SHA256 = Regex("""[0-9a-f]{64}""")
     }
 }
 
@@ -85,6 +90,7 @@ class PaymentStore(val dir: File, private val clock: () -> Long = System::curren
     ): PaymentRecord {
         dir.mkdirs()
         val id = UUID.randomUUID().toString()
+        val hash = sha256(image)
         val ext = image.extension.lowercase().let { if (it == "jpeg") "jpg" else it }
         val record = PaymentRecord(
             id = id,
@@ -96,6 +102,7 @@ class PaymentStore(val dir: File, private val clock: () -> Long = System::curren
             provider = provider,
             direction = direction,
             image = "$id.$ext",
+            imageSha256 = hash,
         )
         val target = File(dir, record.image)
         check(image.renameTo(target) || (image.copyTo(target).exists() && image.delete())) { "cannot move the receipt image" }
@@ -123,6 +130,22 @@ class PaymentStore(val dir: File, private val clock: () -> Long = System::curren
 
     fun imageOf(record: PaymentRecord): File = File(dir, record.image)
 
+    /**
+     * دفعات محفوظة قد تكون هي نفسها، للتنبيه فقط (لا منع): نفس اللقطة ([imageSha256])، أو نفس الاسم (بلا فرق حالة الأحرف
+     * والفراغات) والمبلغ والتاريخ. نفس اللقطة أولًا.
+     */
+    fun duplicatesOf(imageSha256: String?, name: String, amountCents: Long?, date: LocalDate?, records: List<PaymentRecord> = list()): List<Duplicate> {
+        val key = normalizedName(name)
+        return records.mapNotNull { r ->
+            when {
+                imageSha256 != null && r.imageSha256 == imageSha256 -> Duplicate(r, sameImage = true)
+                key.isNotEmpty() && amountCents != null && date != null &&
+                    normalizedName(r.name) == key && r.amountCents == amountCents && r.date == date.toString() -> Duplicate(r, sameImage = false)
+                else -> null
+            }
+        }.sortedByDescending { it.sameImage }
+    }
+
     private fun write(record: PaymentRecord) {
         dir.mkdirs()
         val tmp = File(dir, "${record.id}.json.tmp")
@@ -131,8 +154,22 @@ class PaymentStore(val dir: File, private val clock: () -> Long = System::curren
         check(tmp.renameTo(target)) { "cannot write the payment record" }
     }
 
+    /** [record] محفوظة من قبل: [sameImage] = نفس اللقطة، وإلا نفس الاسم والمبلغ والتاريخ. */
+    data class Duplicate(val record: PaymentRecord, val sameImage: Boolean)
+
     companion object {
         const val DIR_NAME = "payments"
+
+        fun sha256(file: File): String {
+            val md = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buf = ByteArray(64 * 1024)
+                while (true) { val n = input.read(buf); if (n < 0) break; md.update(buf, 0, n) }
+            }
+            return md.digest().joinToString("") { "%02x".format(it) }
+        }
+
+        private fun normalizedName(name: String) = name.trim().replace(Regex("""\s+"""), " ").trimEnd('.', '…', ' ').lowercase()
 
         /**
          * مبلغ كتبه المستخدم أو اقترحه القارئ: «6200»، «6 200»، «6.200»، «6200,50»، «6200.50»، «74.650,00».

@@ -16,6 +16,7 @@ import com.binaa.ocr.core.intake.IntakeSession
 import com.binaa.ocr.core.intake.NewShareDecision
 import com.binaa.ocr.core.intake.ShareAction
 import com.binaa.ocr.core.intake.ShareCheck
+import com.binaa.ocr.core.archive.PaymentRecord
 import com.binaa.ocr.core.archive.PaymentStore
 import com.binaa.ocr.core.receipt.FieldReason
 import com.binaa.ocr.core.receipt.ReceiptField
@@ -101,6 +102,8 @@ data class IntakeUiState(
     val draft: PaymentDraft? = null,
     /** حُفظت الدفعة في «للإدخال» (والصورة نُقلت إلى الأرشيف). */
     val saved: Boolean = false,
+    /** دفعة محفوظة من قبل تشبه هذه (نفس اللقطة، أو نفس الاسم والمبلغ والتاريخ): تنبيه فقط، الحفظ يبقى ممكنًا. */
+    val duplicate: PaymentStore.Duplicate? = null,
 )
 
 class IntakeViewModel(app: Application) : AndroidViewModel(app) {
@@ -110,6 +113,9 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(IntakeUiState())
     val state: StateFlow<IntakeUiState> = _state.asStateFlow()
     private var job: Job? = null
+    /** بصمة اللقطة الحالية والدفعات المحفوظة عند استلامها: للتنبيه من التكرار دون قراءة الملفات مع كل حرف. */
+    private var imageHash: String? = null
+    private var savedRecords: List<PaymentRecord> = emptyList()
     /** محلي بالكامل (Tesseract + ML Kit). التهيئة الثقيلة (النماذج) عند أول قراءة فقط. */
     private val headerEngine = HeaderEngine(app)
     /** ML Kit على اللقطة كاملة (MlKitOcrAdapter كما هو)، محلي بالكامل. */
@@ -141,7 +147,7 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
 
     /** تعديل المراجعة (حقل نصي أو اختيار مرشّح). */
     fun editDraft(change: (PaymentDraft) -> PaymentDraft) {
-        _state.update { s -> s.draft?.let { s.copy(draft = change(it)) } ?: s }
+        _state.update { s -> s.draft?.let { d -> change(d).let { nd -> s.copy(draft = nd, duplicate = duplicateOf(nd)) } } ?: s }
     }
 
     /** «حفظ»: الدفعة إلى «للإدخال»، وصورة الإيصال تُنقل إلى الأرشيف (لا تُحذف). ثم تُغلق الشاشة. */
@@ -166,9 +172,14 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun duplicateOf(d: PaymentDraft): PaymentStore.Duplicate? =
+        payments.duplicatesOf(imageHash, d.name, d.amountCents, d.localDate, savedRecords).firstOrNull()
+
     private fun discardCurrent() {
         job?.cancel()
         job = null
+        imageHash = null
+        savedRecords = emptyList()
         store.delete(_state.value.image)
     }
 
@@ -194,11 +205,16 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     // التحليل يبدأ تلقائيًا: الاسم من رأس WhatsApp أولًا، ثم المبلغ والتاريخ من الإيصال. فك ترميز واحد في الذاكرة.
                     val bitmap = withContext(Dispatchers.IO) { decodeOrNull(result.image.file) }
+                    withContext(Dispatchers.IO) {
+                        imageHash = runCatching { PaymentStore.sha256(result.image.file) }.getOrNull()
+                        savedRecords = runCatching { payments.list() }.getOrDefault(emptyList())
+                    }
                     try {
                         val (header, headerRows) = withContext(Dispatchers.Default) { readHeader(result.image.file, bitmap) }
                         _state.update { if (it.image == result.image) it.copy(header = HeaderUi.Done(header, headerRows)) else it }
                         val (receipt, rows) = withContext(Dispatchers.Default) { readReceipt(bitmap, header) }
-                        _state.update { if (it.image == result.image) it.copy(receipt = ReceiptUi.Done(receipt, rows), draft = draftOf(header, receipt)) else it }
+                        val draft = draftOf(header, receipt)
+                        _state.update { if (it.image == result.image) it.copy(receipt = ReceiptUi.Done(receipt, rows), draft = draft, duplicate = duplicateOf(draft)) else it }
                     } finally {
                         bitmap?.recycle()
                     }
