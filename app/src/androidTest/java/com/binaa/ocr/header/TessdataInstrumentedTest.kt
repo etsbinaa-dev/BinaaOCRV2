@@ -18,12 +18,12 @@ class TessdataInstrumentedTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun pinnedModels_areAraBestAndEngFast() {
+    fun pinnedModels_areAraBestAndEngBest() {
         val pinned = TessdataInstaller.PINNED
         assertEquals(listOf("ara", "eng"), pinned.map { it.language })
-        assertEquals(listOf("tesseract-ocr/tessdata_best", "tesseract-ocr/tessdata_fast"), pinned.map { it.repository })
+        assertEquals(listOf("tesseract-ocr/tessdata_best", "tesseract-ocr/tessdata_best"), pinned.map { it.repository })
         assertEquals("ab9d157d8e38ca00e7e39c7d5363a5239e053f5b0dbdb3167dde9d8124335896", pinned[0].sha256)
-        assertEquals("7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2", pinned[1].sha256)
+        assertEquals("8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba", pinned[1].sha256)
     }
 
     @Test

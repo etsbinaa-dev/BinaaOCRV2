@@ -51,7 +51,7 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 - Tesseract (tesseract4android 4.9.0): `OEM_LSTM_ONLY`، `PSM_SINGLE_LINE`، `ara+eng`، كلمات `RIL_WORD`. كائن واحد خلف قفل.
 - قراءة ثانية للأسماء اللاتينية فقط (`eng+ara`): إذا لم تعطِ القراءة الأولى اسمًا وفيها حروف لاتينية (`ara+eng` قد يقرأ كلمة
   لاتينية كأرقام). تُقبل فقط إذا كان الاسم كله لاتينيًا وأكّد ML Kit كل كلماته، وفيها يُحذف وسم Clt (وأشكاله المقروءة) من آخر السطر.
-- النماذج: `ara` من `tessdata_best` و`eng` من `tessdata_fast` (نفس ملفي Binaa Payment OCR)، بالـcommit والـSHA-256 في
+- النماذج: `ara` و`eng` كلاهما من `tessdata_best` (`eng` الدقيق بدل السريع: السريع قرأ h كـn في اسم لاتيني)، بالـcommit والـSHA-256 في
   `tessdata/tessdata.lock`. تُنزَّل وقت البناء (`fetchTessdata`) ويُتحقق منها قبل التغليف، ثم في APK الإصدار، ثم على الهاتف
   قبل كل تهيئة (تُنسخ إلى `noBackupFilesDir`). لا تنزيل على الهاتف ولا صلاحية شبكة.
 - AAR الـTesseract من JitPack (غير منشور على Maven Central)، لمجموعته فقط (`exclusiveContent`)، ومثبّت بـSHA-256 في
