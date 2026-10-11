@@ -196,6 +196,19 @@ object HeaderDetector {
         return if (second) Detection(null, DetectorRejection.MULTIPLE_HEADER_CANDIDATES, null) else primary
     }
 
+    /** حلقة دائرية مغلقة على حدود [b]: 90% على الأقل من 48 نقطة قرب محيط الدائرة داخل القناع. */
+    private fun ring(mask: Array<BooleanArray>, b: Box): Boolean {
+        val cx = (b.l + b.r - 1) / 2.0; val cy = (b.t + b.b - 1) / 2.0; val r = minOf(b.w, b.h) / 2.0
+        val hits = (0 until 48).count { i ->
+            val a = 2 * Math.PI * i / 48
+            (1..6).any { d ->
+                val x = (cx + (r - d) * Math.cos(a)).roundToInt(); val y = (cy + (r - d) * Math.sin(a)).roundToInt()
+                y in mask.indices && x in mask[y].indices && mask[y][x]
+            }
+        }
+        return hits >= 44
+    }
+
     /**
      * قائمة ⋮ في رأس المحادثة: ثلاث نقاط صغيرة (6–18 بكسل عند 1080) فوق بعضها في عمود واحد، بمسافات متساوية تقريبًا،
      * في الطرف الأيمن من صف الصورة الشخصية. @return مربع النقاط الثلاث معًا، أو null.
@@ -225,7 +238,9 @@ object HeaderDetector {
         val soft = Array(iconZone) { y -> BooleanArray(W) { x -> x < x1 && rgb(px[y][x]).let { q -> (0..2).sumOf { (q[it] - B[it]) * (q[it] - B[it]) } } > 40 * 40 } }
         val size = (80 * s)..(135 * s)
         return components(soft, 0, 0, x1, iconZone)
-            .filter { (b, n) -> b.w.toDouble() in size && b.h.toDouble() in size && b.w.toDouble() / b.h in 0.8..1.25 && n >= 0.5 * b.w * b.h && b.l.toDouble() in (120 * s)..(220 * s) }
+            .filter { (b, n) -> b.w.toDouble() in size && b.h.toDouble() in size && b.w.toDouble() / b.h in 0.8..1.25 && b.l.toDouble() in (120 * s)..(220 * s) &&
+                // صورة ممتلئة، أو صورة فاتحة داخل إطار دائري (حلقة ملوّنة حولها، كما على S26).
+                (n >= 0.5 * b.w * b.h || ring(soft, b)) }
             .maxByOrNull { it.second }?.first
     }
 
