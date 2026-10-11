@@ -214,6 +214,21 @@ class HeaderDetectorTest {
     }
 
     @Test
+    fun chatHeader_lightAvatarInsideAColouredRing_isStillTheAvatar() {
+        // كما على S26: صورة شخصية بيضاء فيها كتابة صغيرة، داخل حلقة زرقاء رفيعة.
+        val c = canvas(bg = 0xFFFFFFFF.toInt()).apply { chat() }
+        for (y in 30 until 137) for (x in 157 until 264) {
+            val d = Math.hypot(x - 210.0, y - 83.0)
+            c.px[y * c.w + x] = if (d in 48.0..53.5) 0xFF2F80ED.toInt() else 0xFFFFFFFF.toInt()
+        }
+        c.rect(185, 70, 235, 76, black)
+        val d = HeaderDetector.detect(c.image())
+        assertNull(d.rejection)
+        assertEquals(HeaderKind.CHAT, d.layout!!.kind)
+        assertEquals(Box(303, 52, 530, 94), d.layout!!.name)
+    }
+
+    @Test
     fun chat_oneIconAndNoMenuDots_isStillNoIconGroup() {
         val d = HeaderDetector.detect(canvas(bg = 0xFFFFFFFF.toInt()).apply { chat(video = false, menu = false) }.image())
         assertEquals(DetectorRejection.NO_ICON_GROUP, d.rejection)
