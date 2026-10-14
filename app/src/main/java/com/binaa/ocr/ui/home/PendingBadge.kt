@@ -19,7 +19,9 @@ import com.binaa.ocr.R
  */
 object PendingBadge {
 
-    private const val CHANNEL = "pending"
+    // قناة «دنيا»: لا أيقونة في شريط الحالة ولا صوت؛ الإشعار مطوي في آخر القائمة، والرقم على أيقونة التطبيق فقط.
+    // (أهمية القناة لا تتغير بعد إنشائها، فهذه قناة جديدة، والقديمة تُحذف.)
+    private const val CHANNEL = "pending_min"
     private const val ID = 1
 
     fun update(context: Context, pending: Int) {
@@ -27,8 +29,9 @@ object PendingBadge {
         if (pending <= 0) { nm.cancel(ID); return }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val manager = context.getSystemService(NotificationManager::class.java)
+        manager.deleteNotificationChannel("pending")
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL, context.getString(R.string.badge_channel), NotificationManager.IMPORTANCE_LOW).apply {
+            NotificationChannel(CHANNEL, context.getString(R.string.badge_channel), NotificationManager.IMPORTANCE_MIN).apply {
                 setShowBadge(true); setSound(null, null); enableVibration(false)
             },
         )
@@ -46,6 +49,8 @@ object PendingBadge {
             .setBadgeIconType(NotificationCompat.BADGE_ICON_SMALL)
             .setOnlyAlertOnce(true)
             .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setShowWhen(false)
             .setContentIntent(open)
             .build()
         runCatching { nm.notify(ID, n) }
