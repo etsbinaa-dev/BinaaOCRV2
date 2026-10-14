@@ -64,7 +64,7 @@
     <string name="home_pending_empty">لا دفعات تنتظر الإدخال.</string>
     <string name="home_archive_empty">الأرشيف فارغ.</string>
     <string name="home_entered">تم</string>
-    <string name="home_restore">إرجاع إلى «للإدخال»</string>
+    <string name="home_restore">إرجاع</string>
     <string name="home_image_loading">…</string>
 
     <!-- المراجعة والحفظ -->
