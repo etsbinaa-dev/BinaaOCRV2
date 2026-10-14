@@ -43,10 +43,10 @@ probe "== report written after adb launch: $report_ok"
 adb shell am force-stop "$APP" || true
 adb shell rm -rf "$REPORTS" || true
 
-# (3) لا صلاحية Android مطلوبة (لا تخزين ولا وسائط ولا شبكة ولا DUMP).
+# (3) لا صلاحية Android مطلوبة سوى POST_NOTIFICATIONS لعدّاد الأيقونة (لا تخزين ولا وسائط ولا شبكة ولا DUMP).
 requested=$(adb shell dumpsys package "$APP" | sed -n '/requested permissions:/,/install permissions:/p')
 probe "== debug app requested permissions:"; probe "$requested"
-if grep -q 'android\.permission\.' <<<"$requested"; then
+if grep 'android\.permission\.' <<<"$requested" | grep -vq 'android\.permission\.POST_NOTIFICATIONS'; then
   echo "::error::The debug app requests an Android permission"; probe_fail=1
 fi
 if [ "$probe_fail" -eq 0 ]; then probe "CorpusActivity access probe OK."; else probe "CorpusActivity access probe FAILED."; fi
