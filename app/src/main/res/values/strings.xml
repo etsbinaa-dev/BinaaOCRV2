@@ -65,6 +65,15 @@
     <string name="home_archive_empty">الأرشيف فارغ.</string>
     <string name="home_entered">تم</string>
     <string name="home_restore">إرجاع</string>
+    <string name="badge_channel">دفعات للإدخال</string>
+    <plurals name="badge_text">
+        <item quantity="zero">لا دفعات للإدخال</item>
+        <item quantity="one">عندك دفعة واحدة للإدخال</item>
+        <item quantity="two">عندك دفعتان للإدخال</item>
+        <item quantity="few">عندك %1$d دفعات للإدخال</item>
+        <item quantity="many">عندك %1$d دفعة للإدخال</item>
+        <item quantity="other">عندك %1$d دفعة للإدخال</item>
+    </plurals>
     <string name="home_image_loading">…</string>
 
     <!-- المراجعة والحفظ -->

@@ -164,6 +164,7 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
                 }.isSuccess
             }
             if (ok) {
+                runCatching { com.binaa.ocr.ui.home.PendingBadge.update(getApplication(), withContext(Dispatchers.IO) { payments.pending().size }) }
                 job?.cancel()
                 _state.value = IntakeUiState(closed = true, saved = true)
             } else {

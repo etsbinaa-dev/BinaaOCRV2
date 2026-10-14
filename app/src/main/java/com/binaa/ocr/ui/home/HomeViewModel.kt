@@ -43,6 +43,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { s ->
                 s.copy(pending = all.filter { it.status == PaymentStatus.PENDING }, archived = all.filter { it.status == PaymentStatus.ARCHIVED })
             }
+            PendingBadge.update(getApplication(), _state.value.pending.size)
         }
     }
 
