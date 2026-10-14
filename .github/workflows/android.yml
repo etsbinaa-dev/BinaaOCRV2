@@ -4,6 +4,11 @@ on:
   push:
   workflow_dispatch:
 
+# دفعة جديدة على الفرع نفسه تلغي البناء القديم الجاري (توفير دقائق Actions).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build, unit tests, lint, release APK checks
@@ -113,7 +118,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api-level: [35, 36]
+        # محاكٍ واحد (الأقرب للهاتف) لتوفير دقائق Actions.
+        api-level: [36]
     steps:
       - uses: actions/checkout@v4
 

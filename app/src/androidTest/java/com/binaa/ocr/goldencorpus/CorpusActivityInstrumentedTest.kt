@@ -98,10 +98,11 @@ class CorpusActivityInstrumentedTest {
         val info = pm.getActivityInfo(ComponentName(context, CorpusActivity::class.java), 0)
         assertEquals(Manifest.permission.DUMP, info.permission)
         assertTrue(info.exported)
-        // التطبيق نفسه لا يملك DUMP، ولا يطلب أي صلاحية Android (لا تخزين ولا وسائط ولا شبكة).
+        // التطبيق نفسه لا يملك DUMP، ولا يطلب أي صلاحية Android (لا تخزين ولا وسائط ولا شبكة)،
+        // سوى الإشعارات: إشعار صامت واحد يحمل عدد الدفعات «للإدخال» على أيقونة التطبيق.
         assertEquals(PackageManager.PERMISSION_DENIED, pm.checkPermission(Manifest.permission.DUMP, context.packageName))
         val requested = pm.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions.orEmpty()
-        assertTrue("unexpected permissions: ${requested.toList()}", requested.none { it.startsWith("android.permission.") })
+        assertTrue("unexpected permissions: ${requested.toList()}", requested.none { it.startsWith("android.permission.") && it != Manifest.permission.POST_NOTIFICATIONS })
     }
 
     // ------------------------------------------------------------------ أدوات

@@ -231,8 +231,9 @@ private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text)
-                    Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted)
+                    Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text, maxLines = 1, softWrap = false)
+                    // التاريخ لا يُكسر أبدًا على عدة أسطر، مهما ضاق السطر.
+                    Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted, maxLines = 1, softWrap = false)
                     r.provider?.let { p ->
                         // شارة بلون كل تطبيق (بلا شعارات تجارية: لا صور داخل التطبيق).
                         Text(
