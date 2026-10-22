@@ -216,8 +216,7 @@ private fun PaymentCard(r: PaymentRecord, icon: androidx.compose.ui.graphics.Ima
                         displayName(r.name),
                         style = MaterialTheme.typography.titleSmall,
                         color = colors.text,
-                        // اسم طويل ينزل إلى سطر ثانٍ بدل أن يقصه المبلغ.
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
