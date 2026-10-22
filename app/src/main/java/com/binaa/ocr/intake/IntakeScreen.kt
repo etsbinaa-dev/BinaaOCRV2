@@ -334,7 +334,8 @@ private fun ReadingDetails(rows: List<String>) {
     val colors = Binaa.colors
     var open by rememberSaveable { mutableStateOf(false) }
     TextButton(onClick = { open = !open }, modifier = Modifier.testTag("reading-details")) {
-        Text(stringResource(R.string.reading_details), color = colors.brand)
+        // للتشخيص فقط: زر صغير باهت، لا يزاحم المراجعة.
+        Text(stringResource(R.string.reading_details), style = MaterialTheme.typography.labelSmall, color = colors.textMuted)
     }
     if (open) {
         Column(Modifier.fillMaxWidth().border(1.dp, colors.divider, MaterialTheme.shapes.medium).padding(8.dp)) {

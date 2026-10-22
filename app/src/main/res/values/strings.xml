@@ -62,7 +62,7 @@
     <string name="home_delete_body">%1$s، %2$s MRU، %3$s.
 تُحذف مع صورة إيصالها، ولا يمكن استرجاعها.</string>
     <string name="home_pending_empty">لا دفعات تنتظر الإدخال.</string>
-    <string name="home_archive_empty">الأرشيف فارغ.</string>
+    <string name="home_archive_empty">الأرشيف فارغ. الدفعات تبقى فيه يومين بعد «تم» ثم تُحذف.</string>
     <string name="home_entered">تم</string>
     <string name="home_restore">إرجاع</string>
     <string name="badge_channel">دفعات للإدخال</string>

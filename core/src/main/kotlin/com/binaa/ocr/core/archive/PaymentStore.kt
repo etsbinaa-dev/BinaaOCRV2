@@ -165,11 +165,23 @@ class PaymentStore(val dir: File, private val clock: () -> Long = System::curren
         check(tmp.renameTo(target)) { "cannot write the payment record" }
     }
 
+    /**
+     * الأرشيف للمراجعة القريبة فقط: دفعة مؤرشفة منذ أكثر من [days] يوم تُحذف نهائيًا (سجلها وصورتها). لا يمس «للإدخال».
+     * @return عدد الدفعات المحذوفة.
+     */
+    fun pruneArchived(days: Int = ARCHIVE_DAYS): Int {
+        val limit = clock() - days * 86_400_000L
+        return archived().count { r -> (r.archivedAtMillis ?: Long.MAX_VALUE) < limit && delete(r.id) }
+    }
+
     /** [record] محفوظة من قبل: [sameImage] = نفس اللقطة، وإلا نفس الاسم والمبلغ والتاريخ. */
     data class Duplicate(val record: PaymentRecord, val sameImage: Boolean)
 
     companion object {
         const val DIR_NAME = "payments"
+
+        /** الأرشيف يُحذف بعد هذه المدة من «تم». */
+        const val ARCHIVE_DAYS = 2
 
         fun sha256(file: File): String {
             val md = MessageDigest.getInstance("SHA-256")

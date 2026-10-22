@@ -147,4 +147,18 @@ class PaymentStoreTest {
         assertNull(PaymentStore.parseAmount("12a"))
         assertNull(PaymentStore.parseAmount("1.2.3"))
     }
+
+    @Test
+    fun prune_deletesOnlyPaymentsArchivedMoreThanTwoDaysAgo() {
+        val old = save(img = image())
+        val recent = save(name = "Sara Ali", img = image())
+        val pending = save(name = "Omar", img = image())
+        store.markEntered(old.id)
+        now += 2L * 86_400_000L
+        store.markEntered(recent.id)
+        now += 1L * 86_400_000L
+        assertEquals(1, store.pruneArchived())
+        assertFalse(store.imageOf(old).exists())
+        assertEquals(listOf(recent.id, pending.id).sorted(), store.list().map { it.id }.sorted())
+    }
 }

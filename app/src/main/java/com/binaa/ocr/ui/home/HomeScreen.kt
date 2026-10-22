@@ -207,7 +207,8 @@ private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore
     ) {
         Box(Modifier.width(5.dp).fillMaxHeight().background(accent))
         Row(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // السطر الأول: من؟ وكم؟ — الاسم في البداية والمبلغ في النهاية، في المكان نفسه في كل البطاقات.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         displayName(r.name),
@@ -215,38 +216,42 @@ private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore
                         color = colors.text,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        // الاسم يملأ السطر، فتبقى شارة الاتجاه في المكان نفسه في كل البطاقات مهما طال الاسم.
                         modifier = Modifier.weight(1f),
                     )
-                    r.direction?.let {
-                        Spacer(Modifier.size(6.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text, maxLines = 1, softWrap = false)
+                }
+                // السطر الثاني: الاتجاه (إطار بسهم) ثم التطبيق (شارة ملوّنة)، والتاريخ في النهاية. لا شيء منها يُقص.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (incoming || outgoing) {
                         Text(
-                            stringResource(if (incoming) R.string.direction_in else R.string.direction_out),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.onBrand,
+                            (if (incoming) "↓ " else "↑ ") + stringResource(if (incoming) R.string.direction_in else R.string.direction_out),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = accent,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier
-                                .background(if (incoming) colors.found else colors.uncertainBorder, CircleShape)
-                                .padding(horizontal = 8.dp, vertical = 1.dp),
+                                .border(1.5.dp, accent, CircleShape)
+                                .padding(horizontal = 10.dp, vertical = 2.dp)
+                                .testTag("direction-${r.id}"),
                         )
                     }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text, maxLines = 1, softWrap = false)
-                    // التاريخ لا يُكسر أبدًا على عدة أسطر، مهما ضاق السطر.
-                    Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted, maxLines = 1, softWrap = false)
                     r.provider?.let { p ->
                         // شارة بلون كل تطبيق (بلا شعارات تجارية: لا صور داخل التطبيق).
                         Text(
                             providerLabel(p),
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = androidx.compose.ui.graphics.Color.White,
                             maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier
-                                .background(providerColor(p), MaterialTheme.shapes.small)
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                .background(providerColor(p), MaterialTheme.shapes.extraSmall)
+                                .padding(horizontal = 10.dp, vertical = 2.dp)
                                 .testTag("provider-${r.id}"),
                         )
                     }
+                    Spacer(Modifier.weight(1f))
+                    Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted, maxLines = 1, softWrap = false)
                 }
             }
             Spacer(Modifier.size(8.dp))

@@ -39,7 +39,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() {
         viewModelScope.launch {
-            val all = withContext(Dispatchers.IO) { store.list() }
+            val all = withContext(Dispatchers.IO) { runCatching { store.pruneArchived() }; store.list() }
             _state.update { s ->
                 s.copy(pending = all.filter { it.status == PaymentStatus.PENDING }, archived = all.filter { it.status == PaymentStatus.ARCHIVED })
             }
