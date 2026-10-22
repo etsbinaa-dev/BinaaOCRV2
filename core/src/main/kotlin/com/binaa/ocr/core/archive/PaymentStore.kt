@@ -49,7 +49,7 @@ data class PaymentRecord(
     val amountText: String get() = (amountCents / 100).toString() + if (amountCents % 100 == 0L) "" else "." + (amountCents % 100).toString().padStart(2, '0')
 
     companion object {
-        val PROVIDERS = setOf("BANKILY", "BIMBANK", "SEDAD", "BCIPAY", "MASRVI", "OTHER")
+        val PROVIDERS = setOf("BANKILY", "BIMBANK", "SEDAD", "BCIPAY", "MASRVI", "CLICK", "OTHER")
         val DIRECTIONS = setOf("INCOMING", "OUTGOING")
         private val ID = Regex("""[0-9a-f-]{36}""")
         private val TIME = Regex("""\d{2}:\d{2}""")

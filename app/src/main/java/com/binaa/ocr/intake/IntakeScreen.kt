@@ -345,7 +345,7 @@ private fun ReadingDetails(rows: List<String>) {
     }
 }
 
-private val PROVIDERS = listOf("BANKILY", "MASRVI", "SEDAD", "BIMBANK", "BCIPAY", "OTHER")
+private val PROVIDERS = listOf("BANKILY", "MASRVI", "SEDAD", "BIMBANK", "BCIPAY", "CLICK", "OTHER")
 
 @Composable
 private fun <T> Candidates(candidates: List<T>, show: (T) -> String, onPick: (T) -> Unit) {
@@ -378,6 +378,7 @@ fun providerLabel(p: String): String = stringResource(
         "SEDAD" -> R.string.provider_sedad
         "BIMBANK" -> R.string.provider_bimbank
         "BCIPAY" -> R.string.provider_bcipay
+        "CLICK" -> R.string.provider_click
         else -> R.string.provider_other
     },
 )
@@ -446,6 +447,7 @@ private fun providerName(p: Provider): String = stringResource(
         Provider.BIMBANK -> R.string.provider_bimbank
         Provider.SEDAD -> R.string.provider_sedad
         Provider.BCIPAY -> R.string.provider_bcipay
+        Provider.CLICK -> R.string.provider_click
         Provider.MASRVI -> R.string.provider_masrvi
     },
 )

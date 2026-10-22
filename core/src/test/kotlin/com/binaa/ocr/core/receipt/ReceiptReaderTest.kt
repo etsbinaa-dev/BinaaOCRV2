@@ -372,4 +372,20 @@ class ReceiptReaderTest {
     fun uncertainWithAValue_isRejected() {
         ReceiptField(FieldStatus.UNCERTAIN, 1, listOf(1, 2), FieldReason.CONFLICTING_VALUES)
     }
+
+    @Test
+    fun click_montantEnvoye_isTheAmount_notTotalOrFees_andNoDate() {
+        // قيم مصطنعة. «87 360,00» قد يُقرأ كلمتين متجاورتين.
+        val r = read(
+            W("Opération", 250, 495, 200), W("confirmée", 470, 495, 200),
+            W("Montant", 110, 650, 140), W("envoyé", 265, 650, 120), W("51", 590, 650, 50), W("400,00", 650, 650, 120), W("MRU", 790, 650),
+            W("Expéditeur", 110, 780), W("+222", 550, 780), W("40", 640, 780, 40), W("00", 700, 780, 40),
+            W("Frais", 110, 1165), W("7.50", 690, 1165), W("MRU", 790, 1165),
+            W("Taxe", 110, 1295), W("51.40", 660, 1295), W("MRU", 790, 1295),
+            W("Total", 110, 1555), W("51458.90", 600, 1555), W("MRU", 790, 1555),
+        )
+        assertEquals(ReceiptField.found(Provider.CLICK), r.provider)
+        assertEquals(ReceiptField.found(amount("51400.00")), r.amount)
+        assertEquals(FieldStatus.NOT_FOUND, r.date.status)
+    }
 }
