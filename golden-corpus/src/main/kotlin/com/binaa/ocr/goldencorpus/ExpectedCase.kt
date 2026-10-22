@@ -42,7 +42,7 @@ enum class CorpusField {
         val AMOUNT_FORMAT = Regex("""(0|[1-9]\d*)\.\d{2}""")
         val DATE_FORMAT = Regex("""\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])""")
         val TIME_FORMAT = Regex("""([01]\d|2[0-3]):[0-5]\d""")
-        val PROVIDERS = setOf("MASRVI", "BANKILY", "SEDAD", "BCIPAY", "BIMBANK", "OTHER")
+        val PROVIDERS = setOf("MASRVI", "BANKILY", "SEDAD", "BCIPAY", "BIMBANK", "CLICK", "OTHER")
     }
 }
 

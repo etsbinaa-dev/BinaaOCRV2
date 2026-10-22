@@ -6,7 +6,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /** تطبيقات الدفع المدعومة الآن (كل واحد بصيغه المعروفة فقط). */
-enum class Provider { BANKILY, BIMBANK, SEDAD, BCIPAY, MASRVI }
+enum class Provider { BANKILY, BIMBANK, SEDAD, BCIPAY, MASRVI, CLICK }
 
 enum class FieldStatus { FOUND, UNCERTAIN, NOT_FOUND }
 
@@ -81,6 +81,9 @@ data class ReceiptReading(
  * - **مصرفي**: يُعرف بشعاره أو بعنوان «Détails du transfert». المبلغ = مبلغ التحويل (45 500,00)، لا ما خُصم من المرسل
  *   مع الرسوم (−45 556,50، سالب) ولا الرسوم نفسها (Taxe/Frais). التاريخ DD/MM/YYYY.
  *
+ * - **Click**: يُعرف بعنوان «Opération confirmée» مع سطر «Montant envoyé». المبلغ = «Montant envoyé» (87 360,00)، لا
+ *   الرسوم ولا الضريبة ولا «Total». الإيصال بلا تاريخ: يكتبه المستخدم.
+ *
  * لا يُقرأ شيء من رأس WhatsApp (فيه تاريخ الرسالة) ولا من شريط الرد أسفل الشاشة: فقط ما بين [bodyTop] و[bodyBottom].
  * رقم من 8 أرقام أو أكثر بلا فواصل (هاتف، حساب، معرّف) لا يكون مبلغًا أبدًا.
  */
@@ -102,6 +105,7 @@ object ReceiptReader {
             // «Détails du transfert» متتالية في سطر واحد (بنكيلي بالفرنسية فيه «détails» و«Transfert» منفصلتين).
             val masrviTitle = rows.any { row -> row.windowed(3).any { (a, b, c) -> DETAILS.matches(a.text) && b.text.equals("du", true) && TRANSFERT.matches(c.text) } }
             if (logos.any { MASRVI.matches(it.text) } || masrviTitle) add(Provider.MASRVI)
+            if (clickSentRow(rows) != null && rows.any { row -> row.windowed(2).any { (a, b) -> OPERATION.matches(a.text) && CONFIRMEE.matches(b.text) } }) add(Provider.CLICK)
         }
         return when (found.size) {
             // بلا شعار مقروء: معرّف «TR…» يخص السداد وBCI Pay (الصيغ نفسها: 30 000,00 و DD-MM-YYYY) ⇒ التطبيق غير مؤكد
@@ -126,10 +130,22 @@ object ReceiptReader {
                     val european = r.amount.value?.let { listOf(it) } ?: r.amount.candidates
                     r.copy(amount = ReceiptField.of(european + sent))
                 }
+                // المبلغ من سطر «Montant envoyé» وحده: «Total» (87456.36) والرسوم أسطر أخرى.
+                Provider.CLICK -> ReceiptReading(
+                    ReceiptField.found(Provider.CLICK),
+                    ReceiptField.of(joinedNumbers(clickSentRow(rows)!!).mapNotNull { EUROPEAN_AMOUNT.matchEntire(it) }.map { m ->
+                        Amount(m.groupValues[1].replace(Regex("[. ]"), "").toLong() * 100 + m.groupValues[2].toLong())
+                    }),
+                    ReceiptField.notFound(FieldReason.NO_VALUE),
+                )
             }
             else -> unread(ReceiptField(FieldStatus.UNCERTAIN, null, found, FieldReason.CONFLICTING_PROVIDERS), FieldReason.CONFLICTING_PROVIDERS)
         }
     }
+
+    /** سطر «Montant envoyé …» في إيصال Click. */
+    private fun clickSentRow(rows: List<List<Token>>): List<Token>? =
+        rows.firstOrNull { row -> row.windowed(2).any { (a, b) -> a.text.equals("Montant", true) && ENVOYE.matches(b.text) } }
 
     private fun unread(provider: ReceiptField<Provider>, reason: FieldReason) =
         ReceiptReading(provider, ReceiptField.notFound(reason), ReceiptField.notFound(reason))
@@ -300,6 +316,8 @@ object ReceiptReader {
     private val TR_ID = Regex("""TR[0O]\d{8,10}""")
     private val NUMERIC = Regex("""[-−–]?[\d.,]+""")
     private val MASRVI = Regex("""(?i)masrvi|مصرفي""")
+    private val OPERATION = Regex("""(?i)op[ée]ration""")
+    private val CONFIRMEE = Regex("""(?i)confirm[ée]e?""")
     private val DETAILS = Regex("""(?i)d[ée]tails""")
     private val TRANSFERT = Regex("""(?i)transfert""")
     private val FEE = Regex("""(?i)taxes?|frais|tax|fees?|commission|رسوم|ضريبة""")

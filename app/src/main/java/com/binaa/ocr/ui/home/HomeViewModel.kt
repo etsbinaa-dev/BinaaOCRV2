@@ -28,6 +28,8 @@ data class HomeState(
     val viewing: Pair<PaymentRecord, ImageBitmap?>? = null,
     /** دفعة تنتظر تأكيد الحذف (ضغطة مطوّلة). */
     val deleting: PaymentRecord? = null,
+    /** أيقونات تطبيقات الدفع المثبّتة على الهاتف. */
+    val icons: Map<String, ImageBitmap> = emptyMap(),
 )
 
 /** «للإدخال» و«الأرشيف» من الأرشيف المحلي. كل قراءة وكتابة خارج الخيط الرئيسي. */
@@ -39,6 +41,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() {
         viewModelScope.launch {
+            if (_state.value.icons.isEmpty()) {
+                val px = (28 * getApplication<Application>().resources.displayMetrics.density).toInt()
+                val icons = withContext(Dispatchers.IO) { ProviderIcons.load(getApplication(), px) }
+                _state.update { it.copy(icons = icons) }
+            }
             val all = withContext(Dispatchers.IO) { runCatching { store.pruneArchived() }; store.list() }
             _state.update { s ->
                 s.copy(pending = all.filter { it.status == PaymentStatus.PENDING }, archived = all.filter { it.status == PaymentStatus.ARCHIVED })

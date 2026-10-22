@@ -20,6 +20,17 @@
     <!-- إشعار صامت واحد بعدد الدفعات «للإدخال»: هو ما يُظهر الرقم على أيقونة التطبيق. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+        أيقونات تطبيقات الدفع المثبّتة على الهاتف (Bankily، Sedad…) تُعرض على بطاقات الدفعات: يكفي أن يرى التطبيق
+        قائمة الأيقونات في الشاشة الرئيسية. ليست صلاحية، ولا شعارات تجارية داخل التطبيق.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".BinaaApp"
         android:allowBackup="true"

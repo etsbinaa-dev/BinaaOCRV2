@@ -143,7 +143,7 @@ fun HomeScreen(
                 )
             }
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (r in list) PaymentCard(r, onEntered, onRestore, onOpen, onDelete)
+                for (r in list) PaymentCard(r, state.icons[r.provider], onEntered, onRestore, onOpen, onDelete)
             }
         }
         Spacer(Modifier.height(24.dp))
@@ -186,7 +186,7 @@ private fun DeleteDialog(record: PaymentRecord, onConfirm: () -> Unit, onCancel:
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore: (String) -> Unit, onOpen: (PaymentRecord) -> Unit, onDelete: (PaymentRecord) -> Unit) {
+private fun PaymentCard(r: PaymentRecord, icon: androidx.compose.ui.graphics.ImageBitmap?, onEntered: (String) -> Unit, onRestore: (String) -> Unit, onOpen: (PaymentRecord) -> Unit, onDelete: (PaymentRecord) -> Unit) {
     val colors = Binaa.colors
     val ltr = MaterialTheme.typography.titleMedium.copy(textDirection = TextDirection.Ltr, fontWeight = FontWeight.SemiBold)
     val incoming = r.direction == "INCOMING"
@@ -237,18 +237,27 @@ private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore
                         )
                     }
                     r.provider?.let { p ->
-                        // شارة بلون كل تطبيق (بلا شعارات تجارية: لا صور داخل التطبيق).
-                        Text(
-                            providerLabel(p),
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = androidx.compose.ui.graphics.Color.White,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier
-                                .background(providerColor(p), MaterialTheme.shapes.extraSmall)
-                                .padding(horizontal = 10.dp, vertical = 2.dp)
-                                .testTag("provider-${r.id}"),
-                        )
+                        if (icon != null) {
+                            // أيقونة التطبيق الحقيقية من الهاتف، واسمه بجانبها.
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("provider-${r.id}")) {
+                                Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(24.dp).clip(MaterialTheme.shapes.small))
+                                Spacer(Modifier.size(4.dp))
+                                Text(providerLabel(p), style = MaterialTheme.typography.labelMedium, color = colors.text, maxLines = 1, softWrap = false)
+                            }
+                        } else {
+                            // التطبيق غير مثبّت: شارة بلونه.
+                            Text(
+                                providerLabel(p),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = androidx.compose.ui.graphics.Color.White,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier
+                                    .background(providerColor(p), MaterialTheme.shapes.extraSmall)
+                                    .padding(horizontal = 10.dp, vertical = 2.dp)
+                                    .testTag("provider-${r.id}"),
+                            )
+                        }
                     }
                     Spacer(Modifier.weight(1f))
                     Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted, maxLines = 1, softWrap = false)
@@ -325,11 +334,12 @@ private fun Step(number: Int, @StringRes text: Int) {
 /** لون ثابت لكل تطبيق دفع، ليُعرف من النظرة الأولى. */
 private fun providerColor(p: String) = androidx.compose.ui.graphics.Color(
     when (p) {
-        "BANKILY" -> 0xFF0097B2
-        "MASRVI" -> 0xFF2E7D32
-        "SEDAD" -> 0xFF43A047
+        "BANKILY" -> 0xFFE0A800
+        "MASRVI" -> 0xFF1BB89A
+        "SEDAD" -> 0xFF9C8A2E
         "BIMBANK" -> 0xFFE65100
-        "BCIPAY" -> 0xFF5B3CC4
+        "BCIPAY" -> 0xFF3B2A8C
+        "CLICK" -> 0xFF1A7F99
         else -> 0xFF607D8B
     },
 )

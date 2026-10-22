@@ -51,6 +51,7 @@
     <string name="provider_sedad">السداد</string>
     <string name="provider_bcipay">BCI Pay</string>
     <string name="provider_masrvi">مصرفي</string>
+    <string name="provider_click">Click</string>
     <string name="provider_other">آخر</string>
 
     <!-- للإدخال والأرشيف -->
