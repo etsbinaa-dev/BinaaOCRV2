@@ -149,45 +149,16 @@ class PaymentStoreTest {
     }
 
     @Test
-    fun exportThenImport_intoAnEmptyStore_restoresRecordsAndImages() {
-        val a = save(img = image(bytes = byteArrayOf(5, 6)))
-        val b = save(name = "Sara Ali", img = image())
-        store.markEntered(b.id)
-        val zip = java.io.ByteArrayOutputStream()
-        assertEquals(2, store.exportTo(zip))
-        val other = PaymentStore(File(root, "restored")) { now }
-        assertEquals(2, other.importFrom(zip.toByteArray().inputStream()))
-        assertEquals(store.list(), other.list())
-        assertArrayEquals(byteArrayOf(5, 6), other.imageOf(a).readBytes())
-        assertEquals("importing the same backup again adds nothing", 0, other.importFrom(zip.toByteArray().inputStream()))
-    }
-
-    @Test
-    fun import_ignoresPathsAndUnknownFiles() {
-        val zip = java.io.ByteArrayOutputStream()
-        java.util.zip.ZipOutputStream(zip).use { z ->
-            for (n in listOf("../evil.json", "notes.txt", "00000000-0000-0000-0000-000000000000.png")) {
-                z.putNextEntry(java.util.zip.ZipEntry(n)); z.write(byteArrayOf(1)); z.closeEntry()
-            }
-        }
-        assertEquals(0, store.importFrom(zip.toByteArray().inputStream()))
-        assertFalse(File(root, "evil.json").exists())
-        assertTrue("an image without its record is not kept", store.dir.listFiles().orEmpty().isEmpty())
-    }
-
-    @Test
-    fun prune_removesOnlyOldArchivedImages_andKeepsTheRecords() {
+    fun prune_deletesOnlyPaymentsArchivedMoreThanTwoDaysAgo() {
         val old = save(img = image())
         val recent = save(name = "Sara Ali", img = image())
         val pending = save(name = "Omar", img = image())
         store.markEntered(old.id)
-        now += 50L * 86_400_000L
+        now += 2L * 86_400_000L
         store.markEntered(recent.id)
-        now += 50L * 86_400_000L
-        assertEquals(1, store.pruneArchivedImages())
+        now += 1L * 86_400_000L
+        assertEquals(1, store.pruneArchived())
         assertFalse(store.imageOf(old).exists())
-        assertTrue(store.imageOf(recent).exists())
-        assertTrue(store.imageOf(pending).exists())
-        assertEquals(3, store.list().size)
+        assertEquals(listOf(recent.id, pending.id).sorted(), store.list().map { it.id }.sorted())
     }
 }

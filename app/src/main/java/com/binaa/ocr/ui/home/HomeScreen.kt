@@ -53,7 +53,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import com.binaa.ocr.R
 import com.binaa.ocr.core.archive.PaymentRecord
-import com.binaa.ocr.core.archive.PaymentStore
 import com.binaa.ocr.core.archive.PaymentStatus
 import com.binaa.ocr.intake.providerLabel
 import com.binaa.ocr.ui.theme.Binaa
@@ -73,8 +72,6 @@ fun HomeScreen(
     onDelete: (PaymentRecord) -> Unit = {},
     onConfirmDelete: () -> Unit = {},
     onCancelDelete: () -> Unit = {},
-    onExport: () -> Unit = {},
-    onImport: () -> Unit = {},
 ) {
     val colors = Binaa.colors
     Column(
@@ -149,15 +146,6 @@ fun HomeScreen(
                 for (r in list) PaymentCard(r, onEntered, onRestore, onOpen, onDelete)
             }
         }
-        Spacer(Modifier.height(16.dp))
-        // نسخة احتياطية في ملف يختار المستخدم مكانه (Drive أو الذاكرة): بلا صلاحية ولا شبكة.
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!empty) OutlinedButton(onClick = onExport, modifier = Modifier.testTag("backup-export")) { Text(stringResource(R.string.backup_export), color = colors.text) }
-            OutlinedButton(onClick = onImport, modifier = Modifier.testTag("backup-import")) { Text(stringResource(R.string.backup_import), color = colors.text) }
-        }
-        state.notice?.let { (res, n) ->
-            Text(if (n == null) stringResource(res) else stringResource(res, n), style = MaterialTheme.typography.bodyMedium, color = colors.textMuted, modifier = Modifier.padding(top = 6.dp).testTag("backup-notice"))
-        }
         Spacer(Modifier.height(24.dp))
     }
 
@@ -168,9 +156,7 @@ fun HomeScreen(
             confirmButton = { TextButton(onClick = onCloseImage) { Text(stringResource(R.string.intake_close), color = colors.text) } },
             title = { Text(displayName(record.name)) },
             text = {
-                if (state.imageMissing) {
-                    Text(stringResource(R.string.home_image_removed, PaymentStore.ARCHIVE_IMAGE_DAYS), color = colors.textMuted)
-                } else if (image != null) {
+                if (image != null) {
                     Image(bitmap = image, contentDescription = stringResource(R.string.intake_preview_description), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp))
                 } else {
                     Text(stringResource(R.string.home_image_loading), color = colors.textMuted)

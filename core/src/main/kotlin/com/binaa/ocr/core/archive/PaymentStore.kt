@@ -6,12 +6,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.LocalTime
-import java.io.InputStream
-import java.io.OutputStream
 import java.util.UUID
-import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
 
 /** «للإدخال» = محفوظة ولم تُدخل في المحاسبة بعد؛ «الأرشيف» = أُدخلت (ضغطت «تم»). */
 enum class PaymentStatus { PENDING, ARCHIVED }
@@ -171,69 +166,12 @@ class PaymentStore(val dir: File, private val clock: () -> Long = System::curren
     }
 
     /**
-     * نسخة احتياطية: كل السجلات وصورها في ملف ZIP واحد يكتبه المستخدم حيث يشاء (لا شبكة).
-     * @return عدد الدفعات المصدَّرة.
+     * الأرشيف للمراجعة القريبة فقط: دفعة مؤرشفة منذ أكثر من [days] يوم تُحذف نهائيًا (سجلها وصورتها). لا يمس «للإدخال».
+     * @return عدد الدفعات المحذوفة.
      */
-    fun exportTo(out: OutputStream): Int {
-        val records = list()
-        ZipOutputStream(out).use { zip ->
-            for (r in records) {
-                for (f in listOf(File(dir, "${r.id}.json"), imageOf(r))) {
-                    if (!f.isFile) continue
-                    zip.putNextEntry(ZipEntry(f.name))
-                    f.inputStream().use { it.copyTo(zip) }
-                    zip.closeEntry()
-                }
-            }
-        }
-        return records.size
-    }
-
-    /**
-     * استرجاع نسخة [exportTo]: يضيف ما ليس موجودًا فقط (لا يستبدل دفعة موجودة بنفس المعرّف).
-     * يقبل فقط أسماء ملفات السجلات والصور المعروفة (لا مسارات)، وسجلًا صالحًا فقط.
-     * @return عدد الدفعات المضافة.
-     */
-    fun importFrom(input: InputStream): Int {
-        dir.mkdirs()
-        var added = 0
-        val images = mutableListOf<String>()
-        ZipInputStream(input).use { zip ->
-            while (true) {
-                val e = zip.nextEntry ?: break
-                val name = e.name
-                when {
-                    e.isDirectory -> Unit
-                    RECORD_FILE.matches(name) -> {
-                        val text = zip.readBytes().toString(Charsets.UTF_8)
-                        val r = runCatching { json.decodeFromString(PaymentRecord.serializer(), text) }.getOrNull()
-                        if (r != null && "${r.id}.json" == name && !File(dir, name).exists()) { write(r); added++ }
-                    }
-                    IMAGE_FILE.matches(name) -> {
-                        val target = File(dir, name)
-                        if (!target.exists()) {
-                            val tmp = File(dir, "$name.tmp")
-                            tmp.outputStream().use { zip.copyTo(it) }
-                            if (!tmp.renameTo(target)) tmp.delete()
-                            images += name
-                        }
-                    }
-                }
-            }
-        }
-        // صورة بلا سجل (نسخة ناقصة): لا تبقى يتيمة.
-        val used = list().map { it.image }.toSet()
-        for (n in images) if (n !in used) File(dir, n).delete()
-        return added
-    }
-
-    /**
-     * يحذف صور الإيصالات المؤرشفة منذ أكثر من [days] يومًا، ويُبقي بيانات الدفعة. لا يمس «للإدخال».
-     * @return عدد الصور المحذوفة.
-     */
-    fun pruneArchivedImages(days: Int = ARCHIVE_IMAGE_DAYS): Int {
+    fun pruneArchived(days: Int = ARCHIVE_DAYS): Int {
         val limit = clock() - days * 86_400_000L
-        return archived().count { r -> (r.archivedAtMillis ?: Long.MAX_VALUE) < limit && imageOf(r).let { it.isFile && it.delete() } }
+        return archived().count { r -> (r.archivedAtMillis ?: Long.MAX_VALUE) < limit && delete(r.id) }
     }
 
     /** [record] محفوظة من قبل: [sameImage] = نفس اللقطة، وإلا نفس الاسم والمبلغ والتاريخ. */
@@ -242,10 +180,8 @@ class PaymentStore(val dir: File, private val clock: () -> Long = System::curren
     companion object {
         const val DIR_NAME = "payments"
 
-        /** صور الأرشيف تُحذف بعد هذه المدة من «تم»؛ بيانات الدفعة تبقى. */
-        const val ARCHIVE_IMAGE_DAYS = 90
-        private val RECORD_FILE = Regex("""[0-9a-f-]{36}\.json""")
-        private val IMAGE_FILE = Regex("""[0-9a-f-]{36}\.(png|jpg|webp)""")
+        /** الأرشيف يُحذف بعد هذه المدة من «تم». */
+        const val ARCHIVE_DAYS = 2
 
         fun sha256(file: File): String {
             val md = MessageDigest.getInstance("SHA-256")
