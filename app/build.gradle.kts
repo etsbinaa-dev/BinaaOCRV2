@@ -166,6 +166,9 @@ android {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (v2KeystorePath != null) signingConfig = signingConfigs.getByName("v2")
+            // كل هواتف Android الحديثة arm64: مكتبات Tesseract وML Kit لهذه المعمارية فقط (نصف حجم APK تقريبًا).
+            // نسخة debug تبقى بكل المعماريات لمحاكي CI (x86_64).
+            ndk { abiFilters += "arm64-v8a" }
         }
     }
 
