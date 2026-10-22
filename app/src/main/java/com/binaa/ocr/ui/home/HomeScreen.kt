@@ -52,6 +52,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import com.binaa.ocr.R
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.binaa.ocr.core.archive.PaymentRecord
 import com.binaa.ocr.core.archive.PaymentStatus
 import com.binaa.ocr.intake.providerLabel
@@ -272,11 +274,13 @@ private fun PaymentCard(r: PaymentRecord, icon: androidx.compose.ui.graphics.Ima
                     colors = ButtonDefaults.buttonColors(containerColor = colors.brand),
                 ) { Text(stringResource(R.string.home_entered), color = colors.onBrand) }
             } else {
-                OutlinedButton(
+                // «إرجاع» نادر: زر صغير بسهم فقط، لا يأخذ مكان الاسم.
+                val restore = stringResource(R.string.home_restore)
+                TextButton(
                     onClick = { onRestore(r.id) },
-                    modifier = Modifier.height(40.dp).testTag("restore-${r.id}"),
-                    contentPadding = PaddingValues(horizontal = 14.dp),
-                ) { Text(stringResource(R.string.home_restore), color = colors.text) }
+                    modifier = Modifier.size(40.dp).testTag("restore-${r.id}").semantics { contentDescription = restore },
+                    contentPadding = PaddingValues(0.dp),
+                ) { Text("↩", style = MaterialTheme.typography.titleMedium, color = colors.textMuted) }
             }
         }
     }
