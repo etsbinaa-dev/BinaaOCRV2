@@ -241,7 +241,8 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
             name = header.name.orEmpty(),
             amount = amount?.let { amountText(it.cents) }.orEmpty(),
             amountCandidates = receipt.amount.candidates.map { amountText(it.cents) },
-            date = date?.date?.toString().orEmpty(),
+            // لا تاريخ مقروء (Click بلا تاريخ، أو فشل القراءة): تاريخ اليوم من الهاتف، ويبقى قابلًا للتعديل.
+            date = (date?.date ?: LocalDate.now()).toString(),
             time = date?.let { hhmm(it.time) }.orEmpty(),
             dateCandidates = receipt.date.candidates.map { it.date.toString() to hhmm(it.time) },
             provider = receipt.provider.value?.name,
