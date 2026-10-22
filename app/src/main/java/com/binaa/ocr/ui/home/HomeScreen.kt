@@ -53,6 +53,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import com.binaa.ocr.R
 import com.binaa.ocr.core.archive.PaymentRecord
+import com.binaa.ocr.core.archive.PaymentStore
 import com.binaa.ocr.core.archive.PaymentStatus
 import com.binaa.ocr.intake.providerLabel
 import com.binaa.ocr.ui.theme.Binaa
@@ -72,6 +73,8 @@ fun HomeScreen(
     onDelete: (PaymentRecord) -> Unit = {},
     onConfirmDelete: () -> Unit = {},
     onCancelDelete: () -> Unit = {},
+    onExport: () -> Unit = {},
+    onImport: () -> Unit = {},
 ) {
     val colors = Binaa.colors
     Column(
@@ -146,6 +149,15 @@ fun HomeScreen(
                 for (r in list) PaymentCard(r, onEntered, onRestore, onOpen, onDelete)
             }
         }
+        Spacer(Modifier.height(16.dp))
+        // نسخة احتياطية في ملف يختار المستخدم مكانه (Drive أو الذاكرة): بلا صلاحية ولا شبكة.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!empty) OutlinedButton(onClick = onExport, modifier = Modifier.testTag("backup-export")) { Text(stringResource(R.string.backup_export), color = colors.text) }
+            OutlinedButton(onClick = onImport, modifier = Modifier.testTag("backup-import")) { Text(stringResource(R.string.backup_import), color = colors.text) }
+        }
+        state.notice?.let { (res, n) ->
+            Text(if (n == null) stringResource(res) else stringResource(res, n), style = MaterialTheme.typography.bodyMedium, color = colors.textMuted, modifier = Modifier.padding(top = 6.dp).testTag("backup-notice"))
+        }
         Spacer(Modifier.height(24.dp))
     }
 
@@ -156,7 +168,9 @@ fun HomeScreen(
             confirmButton = { TextButton(onClick = onCloseImage) { Text(stringResource(R.string.intake_close), color = colors.text) } },
             title = { Text(displayName(record.name)) },
             text = {
-                if (image != null) {
+                if (state.imageMissing) {
+                    Text(stringResource(R.string.home_image_removed, PaymentStore.ARCHIVE_IMAGE_DAYS), color = colors.textMuted)
+                } else if (image != null) {
                     Image(bitmap = image, contentDescription = stringResource(R.string.intake_preview_description), contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp))
                 } else {
                     Text(stringResource(R.string.home_image_loading), color = colors.textMuted)
@@ -207,7 +221,8 @@ private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore
     ) {
         Box(Modifier.width(5.dp).fillMaxHeight().background(accent))
         Row(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                // السطر الأول: من؟ وكم؟ — الاسم في البداية والمبلغ في النهاية، في المكان نفسه في كل البطاقات.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         displayName(r.name),
@@ -215,38 +230,42 @@ private fun PaymentCard(r: PaymentRecord, onEntered: (String) -> Unit, onRestore
                         color = colors.text,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        // الاسم يملأ السطر، فتبقى شارة الاتجاه في المكان نفسه في كل البطاقات مهما طال الاسم.
                         modifier = Modifier.weight(1f),
                     )
-                    r.direction?.let {
-                        Spacer(Modifier.size(6.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text, maxLines = 1, softWrap = false)
+                }
+                // السطر الثاني: الاتجاه (إطار بسهم) ثم التطبيق (شارة ملوّنة)، والتاريخ في النهاية. لا شيء منها يُقص.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (incoming || outgoing) {
                         Text(
-                            stringResource(if (incoming) R.string.direction_in else R.string.direction_out),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.onBrand,
+                            (if (incoming) "↓ " else "↑ ") + stringResource(if (incoming) R.string.direction_in else R.string.direction_out),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = accent,
+                            maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier
-                                .background(if (incoming) colors.found else colors.uncertainBorder, CircleShape)
-                                .padding(horizontal = 8.dp, vertical = 1.dp),
+                                .border(1.5.dp, accent, CircleShape)
+                                .padding(horizontal = 10.dp, vertical = 2.dp)
+                                .testTag("direction-${r.id}"),
                         )
                     }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("\u2066${r.amountText} MRU\u2069", style = ltr, color = colors.text, maxLines = 1, softWrap = false)
-                    // التاريخ لا يُكسر أبدًا على عدة أسطر، مهما ضاق السطر.
-                    Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted, maxLines = 1, softWrap = false)
                     r.provider?.let { p ->
                         // شارة بلون كل تطبيق (بلا شعارات تجارية: لا صور داخل التطبيق).
                         Text(
                             providerLabel(p),
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = androidx.compose.ui.graphics.Color.White,
                             maxLines = 1,
+                            softWrap = false,
                             modifier = Modifier
-                                .background(providerColor(p), MaterialTheme.shapes.small)
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                .background(providerColor(p), MaterialTheme.shapes.extraSmall)
+                                .padding(horizontal = 10.dp, vertical = 2.dp)
                                 .testTag("provider-${r.id}"),
                         )
                     }
+                    Spacer(Modifier.weight(1f))
+                    Text("\u2066" + r.date + "\u2069", style = MaterialTheme.typography.bodySmall, color = colors.textMuted, maxLines = 1, softWrap = false)
                 }
             }
             Spacer(Modifier.size(8.dp))

@@ -3,7 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        لا يطلب Binaa OCR V2 أي صلاحية.
+        لا يطلب Binaa OCR V2 أي صلاحية سوى POST_NOTIFICATIONS (رقم الدفعات على الأيقونة).
         - لا INTERNET: كل المعالجة على الهاتف.
         - لا READ_MEDIA_IMAGES ولا READ_EXTERNAL_STORAGE ولا منتقي صور: المدخل الوحيد لقطة شاشة
           تُشارَك من WhatsApp، وتصل عبر URI بإذن قراءة مؤقت للصورة وحدها.

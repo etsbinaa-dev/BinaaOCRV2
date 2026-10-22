@@ -2,6 +2,8 @@ package com.binaa.ocr.ui.home
 
 import android.app.Application
 import android.graphics.BitmapFactory
+import android.net.Uri
+import com.binaa.ocr.R
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.lifecycle.AndroidViewModel
@@ -28,6 +30,10 @@ data class HomeState(
     val viewing: Pair<PaymentRecord, ImageBitmap?>? = null,
     /** دفعة تنتظر تأكيد الحذف (ضغطة مطوّلة). */
     val deleting: PaymentRecord? = null,
+    /** صورة الإيصال المفتوحة حُذفت (أرشيف أقدم من المدة). */
+    val imageMissing: Boolean = false,
+    /** نتيجة التصدير أو الاسترجاع: (نص، عدد). */
+    val notice: Pair<Int, Int?>? = null,
 )
 
 /** «للإدخال» و«الأرشيف» من الأرشيف المحلي. كل قراءة وكتابة خارج الخيط الرئيسي. */
@@ -39,7 +45,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refresh() {
         viewModelScope.launch {
-            val all = withContext(Dispatchers.IO) { store.list() }
+            val all = withContext(Dispatchers.IO) { runCatching { store.pruneArchivedImages() }; store.list() }
             _state.update { s ->
                 s.copy(pending = all.filter { it.status == PaymentStatus.PENDING }, archived = all.filter { it.status == PaymentStatus.ARCHIVED })
             }
@@ -68,14 +74,36 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun open(record: PaymentRecord) {
-        _state.update { it.copy(viewing = record to null) }
+        val file = store.imageOf(record)
+        _state.update { it.copy(viewing = record to null, imageMissing = false) }
         viewModelScope.launch {
-            val image = withContext(Dispatchers.IO) { decode(store.imageOf(record)) }
-            _state.update { s -> if (s.viewing?.first?.id == record.id) s.copy(viewing = record to image) else s }
+            val missing = withContext(Dispatchers.IO) { !file.isFile }
+            val image = if (missing) null else withContext(Dispatchers.IO) { decode(file) }
+            _state.update { s -> if (s.viewing?.first?.id == record.id) s.copy(viewing = record to image, imageMissing = missing) else s }
         }
     }
 
     fun closeImage() = _state.update { it.copy(viewing = null) }
+
+    /** يكتب نسخة احتياطية (ZIP) في [uri] الذي اختاره المستخدم. */
+    fun exportTo(uri: Uri) = backup {
+        val n = getApplication<Application>().contentResolver.openOutputStream(uri)!!.use { store.exportTo(it) }
+        R.string.backup_exported to n
+    }
+
+    /** يضيف من نسخة احتياطية ما ليس موجودًا (لا يستبدل شيئًا). */
+    fun importFrom(uri: Uri) = backup {
+        val n = getApplication<Application>().contentResolver.openInputStream(uri)!!.use { store.importFrom(it) }
+        R.string.backup_imported to n
+    }
+
+    private fun backup(action: () -> Pair<Int, Int?>) {
+        viewModelScope.launch {
+            val notice = withContext(Dispatchers.IO) { runCatching(action).getOrElse { R.string.backup_failed to null } }
+            _state.update { it.copy(notice = notice) }
+            refresh()
+        }
+    }
 
     private fun change(action: () -> Unit) {
         viewModelScope.launch {

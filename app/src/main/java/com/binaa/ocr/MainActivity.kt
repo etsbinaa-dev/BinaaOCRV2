@@ -20,6 +20,9 @@ class MainActivity : ComponentActivity() {
 
     val viewModel: HomeViewModel by viewModels()
 
+    private val exportLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri -> uri?.let(viewModel::exportTo) }
+    private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(viewModel::importFrom) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // إذن الإشعارات (Android 13+) مرة واحدة: بدونه لا رقم على الأيقونة، والتطبيق يعمل كما هو.
@@ -41,6 +44,8 @@ class MainActivity : ComponentActivity() {
                     onDelete = viewModel::requestDelete,
                     onConfirmDelete = viewModel::confirmDelete,
                     onCancelDelete = viewModel::cancelDelete,
+                    onExport = { exportLauncher.launch("binaa-ocr-backup-${java.time.LocalDate.now()}.zip") },
+                    onImport = { importLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
                 )
             }
         }

@@ -65,6 +65,12 @@
     <string name="home_archive_empty">الأرشيف فارغ.</string>
     <string name="home_entered">تم</string>
     <string name="home_restore">إرجاع</string>
+    <string name="home_image_removed">حُذفت صورة هذا الإيصال تلقائيًا بعد %1$d يومًا في الأرشيف. بيانات الدفعة باقية.</string>
+    <string name="backup_export">حفظ نسخة احتياطية</string>
+    <string name="backup_import">استرجاع نسخة</string>
+    <string name="backup_exported">حُفظت نسخة احتياطية فيها %1$d دفعة.</string>
+    <string name="backup_imported">أُضيفت %1$d دفعة من النسخة الاحتياطية.</string>
+    <string name="backup_failed">تعذّر حفظ النسخة أو قراءتها.</string>
     <string name="badge_channel">دفعات للإدخال</string>
     <plurals name="badge_text">
         <item quantity="zero">لا دفعات للإدخال</item>
