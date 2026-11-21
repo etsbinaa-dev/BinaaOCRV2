@@ -34,7 +34,9 @@ WhatsApp ← فتح صورة الإيصال في Image Viewer ← لقطة شا�
 
 ## الخصوصية
 
-- لا `INTERNET`، ولا `READ_MEDIA_IMAGES`، ولا `READ_EXTERNAL_STORAGE`. CI يفحص الـAPK النهائي.
+- الصلاحيات: `POST_NOTIFICATIONS` (رقم الأيقونة) و`INTERNET` للمزامنة بين هاتفي المستخدم فقط. لا `ACCESS_NETWORK_STATE`، ولا `READ_MEDIA_IMAGES`، ولا `READ_EXTERNAL_STORAGE`، ولا الكاميرا. CI يفحص الـAPK النهائي، ويتحقق من إزالة telemetry ML Kit (datatransport).
+- القراءة (Tesseract وML Kit) على الهاتف بلا شبكة.
+- **المزامنة** (`core/sync`، `app/.../sync`): كل دفعة (السجل والصورة) تُشفّر بـAES-256-GCM على الهاتف قبل رفعها إلى مجلد التطبيق الخاص في Google Drive (`drive.appdata`). المفتاح يُولَّد على الهاتف الأول وينتقل إلى الثاني برمز QR فقط، ويُحفظ مشفّرًا بمفتاح Android Keystore؛ لا يصل إلى أي خادم. رمز تحقق من 6 أرقام يظهر على الهاتفين.
 - لقطة شاشة التطبيق مسموحة (قرار المالك، بدل `FLAG_SECURE` في Phase 0): ما يظهر على الشاشة قد يُحفظ في معرض الصور.
 - النسخ السحابي ممنوع؛ النقل المباشر بين هاتفين مسموح (Android 12+) عدا صور الاستلام المؤقتة.
 - الصور الحقيقية وGolden Corpus لا تدخل Git أبدًا (CI يرفض أي صورة نقطية متتبَّعة). أدوات Corpus لنسخة debug فقط.

@@ -31,6 +31,8 @@ data class PaymentRecord(
     val archivedAtMillis: Long? = null,
     /** SHA-256 لصورة الإيصال كما وصلت: نفس اللقطة مرتين ⇒ نفس البصمة. null في السجلات الأقدم. */
     val imageSha256: String? = null,
+    /** آخر تغيير («تم» أو «إرجاع»)، للمزامنة بين الهاتفين. null ⇒ لم يتغير منذ الحفظ. */
+    val updatedAtMillis: Long? = null,
 ) {
     init {
         require(ID.matches(id)) { "bad id" }
@@ -44,6 +46,9 @@ data class PaymentRecord(
         require((status == PaymentStatus.ARCHIVED) == (archivedAtMillis != null)) { "archivedAt only for archived" }
         require(imageSha256 == null || SHA256.matches(imageSha256)) { "bad image hash" }
     }
+
+    /** نسخة السجل للمزامنة: الأحدث يغلب. */
+    val version: Long get() = updatedAtMillis ?: archivedAtMillis ?: savedAtMillis
 
     /** للعرض: «6200» أو «6200.50». */
     val amountText: String get() = (amountCents / 100).toString() + if (amountCents % 100 == 0L) "" else "." + (amountCents % 100).toString().padStart(2, '0')
@@ -119,16 +124,32 @@ class PaymentStore(val dir: File, private val clock: () -> Long = System::curren
     fun markEntered(id: String): PaymentRecord? {
         val current = list().firstOrNull { it.id == id } ?: return null
         if (current.status == PaymentStatus.ARCHIVED) return current
-        return current.copy(status = PaymentStatus.ARCHIVED, archivedAtMillis = clock()).also { write(it) }
+        val now = clock()
+        return current.copy(status = PaymentStatus.ARCHIVED, archivedAtMillis = now, updatedAtMillis = now).also { write(it) }
     }
 
     /** إعادة دفعة من الأرشيف إلى «للإدخال» (ضغطة «تم» بالخطأ). */
     fun markPending(id: String): PaymentRecord? {
         val current = list().firstOrNull { it.id == id } ?: return null
-        return current.copy(status = PaymentStatus.PENDING, archivedAtMillis = null).also { write(it) }
+        return current.copy(status = PaymentStatus.PENDING, archivedAtMillis = null, updatedAtMillis = clock()).also { write(it) }
     }
 
     fun imageOf(record: PaymentRecord): File = File(dir, record.image)
+
+    /**
+     * دفعة وصلت من الهاتف الآخر (مزامنة): تُكتب كما هي، أو تحل محل نسختها الأقدم. الصورة تُكتب أولًا ثم السجل،
+     * فلا يظهر سجل بلا صورة.
+     */
+    fun putSynced(record: PaymentRecord, image: ByteArray) {
+        dir.mkdirs()
+        val target = imageOf(record)
+        if (!target.isFile || target.length() != image.size.toLong()) {
+            val tmp = File(dir, "${record.image}.tmp")
+            tmp.writeBytes(image)
+            check(tmp.renameTo(target)) { "cannot write the synced image" }
+        }
+        write(record)
+    }
 
     /**
      * حذف نهائي (دفعة مكررة أو خاطئة): السجل أولًا، ثم صورة إيصاله. لا سلة محذوفات.

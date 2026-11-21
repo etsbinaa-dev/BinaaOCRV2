@@ -29,8 +29,12 @@ done
 
 # ---- الصلاحيات
 "$AAPT2" dump permissions "$APK" | tee ci-output/apk-permissions.txt
-FORBIDDEN='android.permission.(INTERNET|ACCESS_NETWORK_STATE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_VISUAL_USER_SELECTED|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|CAMERA|QUERY_ALL_PACKAGES)'
+FORBIDDEN='android.permission.(ACCESS_NETWORK_STATE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_VISUAL_USER_SELECTED|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE|CAMERA|QUERY_ALL_PACKAGES)'
 if grep -E "$FORBIDDEN" ci-output/apk-permissions.txt; then echo "::error::Forbidden permission in release APK"; fail=1; fi
+# الصلاحيات المسموحة فقط: INTERNET (المزامنة) وPOST_NOTIFICATIONS (رقم الأيقونة)، ومثيلها الداخلي DYNAMIC_RECEIVER_NOT_EXPORTED.
+if grep -oE "name='android\.permission\.[A-Z_]+'" ci-output/apk-permissions.txt | grep -vE "android\.permission\.(INTERNET|POST_NOTIFICATIONS)'"; then
+  echo "::error::Unexpected Android permission in release APK"; fail=1
+fi
 
 # ---- لا منتقي صور ولا Corpus داخل الكود النهائي (بعد R8)
 unzip -p "$APK" 'classes*.dex' | strings -n 5 > ci-output/dex-strings.txt
@@ -63,6 +67,8 @@ fi
 # (لا نبحث عن android.permission.DUMP عمومًا: مكوّنات AndroidX نفسها، مثل ProfileInstallReceiver، محمية بها.)
 CORPUS_MANIFEST='goldencorpus|CorpusActivity'
 "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > ci-output/release-manifest.txt
+# telemetry ML Kit (datatransport) مُزال: التطبيق يملك INTERNET للمزامنة وحدها.
+if grep -nE 'datatransport' ci-output/release-manifest.txt; then echo "::error::datatransport telemetry component in the release manifest"; fail=1; fi
 if grep -nE "$CORPUS_MANIFEST" ci-output/release-manifest.txt; then
   echo "::error::Golden Corpus runner declared in the release manifest"; fail=1
 fi

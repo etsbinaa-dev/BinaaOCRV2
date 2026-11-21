@@ -7,6 +7,7 @@ import kotlin.concurrent.thread
 class BinaaApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.binaa.ocr.sync.SyncEngine.init(this)
         // صور الاستلام المتروكة (مثلًا أُوقف التطبيق قبل الإغلاق) لا تبقى على الهاتف أكثر من يوم.
         thread(name = "intake-cleanup", isDaemon = true) {
             IntakeStore(filesDir, contentResolver).deleteExpired(System.currentTimeMillis())

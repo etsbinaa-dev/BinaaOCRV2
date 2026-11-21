@@ -3,19 +3,14 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-        لا يطلب Binaa OCR V2 أي صلاحية سوى POST_NOTIFICATIONS (رقم الدفعات على الأيقونة).
-        - لا INTERNET: كل المعالجة على الهاتف.
-        - لا READ_MEDIA_IMAGES ولا READ_EXTERNAL_STORAGE ولا منتقي صور: المدخل الوحيد لقطة شاشة
-          تُشارَك من WhatsApp، وتصل عبر URI بإذن قراءة مؤقت للصورة وحدها.
-        CI يرفض أي APK إصدار تظهر فيه صلاحية من هذه (حتى لو أضافتها مكتبة).
+        الصلاحيات: POST_NOTIFICATIONS (رقم الدفعات على الأيقونة) وINTERNET للمزامنة بين هاتفي المستخدم فقط.
+        - INTERNET: المزامنة المشفّرة مع مجلد التطبيق الخاص في Google Drive (sync/). القراءة نفسها (Tesseract وML Kit)
+          تجري على الهاتف ولا تتصل بشيء.
+        - لا ACCESS_NETWORK_STATE، ولا READ_MEDIA_IMAGES ولا READ_EXTERNAL_STORAGE ولا الكاميرا ولا منتقي صور: المدخل الوحيد
+          لقطة شاشة تُشارَك من WhatsApp، وتصل عبر URI بإذن قراءة مؤقت للصورة وحدها. رمز الربط يُمسح بماسح Google.
+        CI يرفض أي APK إصدار تظهر فيه صلاحية غير هذه (حتى لو أضافتها مكتبة).
     -->
-
-    <!--
-        ML Kit (عبر مكوّن telemetry من Google: datatransport) يضيف هاتين الصلاحيتين عند دمج الـManifest،
-        وقد ثبت ذلك في CI على APK الإصدار. نحذفهما: النموذج مضمّن في التطبيق ويعمل بلا شبكة،
-        وبدونهما لا يستطيع ذلك المكوّن إرسال أي شيء.
-    -->
-    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
     <!-- إشعار صامت واحد بعدد الدفعات «للإدخال»: هو ما يُظهر الرقم على أيقونة التطبيق. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -41,6 +36,14 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.BinaaOcr">
+
+        <!--
+            مكوّن telemetry من Google (datatransport) يأتي مع ML Kit ويرسل إحصاءات استعمال. التطبيق صار يملك INTERNET
+            للمزامنة، فنزيل مكوّناته: بلا TransportBackendDiscovery لا توجد جهة يُرسَل إليها شيء. CI يتحقق من غيابها.
+        -->
+        <service android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery" tools:node="remove" />
+        <service android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService" tools:node="remove" />
+        <receiver android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver" tools:node="remove" />
 
         <!-- الشاشة الرئيسية: متابعة وإرشاد فقط. لا تبدأ منها أي قراءة. -->
         <activity

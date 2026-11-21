@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.binaa.ocr.sync.SyncEngine
 
 enum class HomeTab { PENDING, ARCHIVE }
 
@@ -39,8 +40,16 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()
 
+    /** القائمة، ثم المزامنة مع الهاتف الآخر إن كانت مفعّلة (وإعادة القائمة إن تغيّر شيء). */
     fun refresh() {
         viewModelScope.launch {
+            reload()
+            if (SyncEngine.sync(getApplication())) reload()
+        }
+    }
+
+    private suspend fun reload() {
+        run {
             if (_state.value.icons.isEmpty()) {
                 val px = (28 * getApplication<Application>().resources.displayMetrics.density).toInt()
                 val icons = withContext(Dispatchers.IO) { ProviderIcons.load(getApplication(), px) }
@@ -71,7 +80,11 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun confirmDelete() {
         val record = _state.value.deleting ?: return
         _state.update { it.copy(deleting = null) }
-        change { store.delete(record.id) }
+        viewModelScope.launch {
+            SyncEngine.noteDeleted(getApplication(), record.id)
+            withContext(Dispatchers.IO) { runCatching { store.delete(record.id) } }
+            refresh()
+        }
     }
 
     fun open(record: PaymentRecord) {

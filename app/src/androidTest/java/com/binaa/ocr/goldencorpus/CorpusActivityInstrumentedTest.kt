@@ -102,7 +102,7 @@ class CorpusActivityInstrumentedTest {
         // سوى الإشعارات: إشعار صامت واحد يحمل عدد الدفعات «للإدخال» على أيقونة التطبيق.
         assertEquals(PackageManager.PERMISSION_DENIED, pm.checkPermission(Manifest.permission.DUMP, context.packageName))
         val requested = pm.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions.orEmpty()
-        assertTrue("unexpected permissions: ${requested.toList()}", requested.none { it.startsWith("android.permission.") && it != Manifest.permission.POST_NOTIFICATIONS })
+        assertTrue("unexpected permissions: ${requested.toList()}", requested.none { it.startsWith("android.permission.") && it != Manifest.permission.POST_NOTIFICATIONS && it != Manifest.permission.INTERNET })
     }
 
     // ------------------------------------------------------------------ أدوات

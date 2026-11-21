@@ -74,6 +74,10 @@ fun HomeScreen(
     onDelete: (PaymentRecord) -> Unit = {},
     onConfirmDelete: () -> Unit = {},
     onCancelDelete: () -> Unit = {},
+    sync: com.binaa.ocr.sync.SyncStatus = com.binaa.ocr.sync.SyncStatus.Off,
+    syncQr: com.binaa.ocr.core.sync.SyncKey? = null,
+    onSync: (SyncCommand) -> Unit = {},
+    onCloseSyncQr: () -> Unit = {},
 ) {
     val colors = Binaa.colors
     Column(
@@ -101,6 +105,7 @@ fun HomeScreen(
             color = colors.textMuted,
             modifier = Modifier.testTag("version"),
         )
+        SyncSection(sync, syncQr, onSync, onCloseSyncQr)
         Spacer(Modifier.height(20.dp))
         val empty = state.pending.isEmpty() && state.archived.isEmpty()
         // الإرشاد فقط قبل أول دفعة؛ بعدها الشاشة كلها للدفعات.

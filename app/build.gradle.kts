@@ -203,6 +203,11 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     implementation("com.google.mlkit:text-recognition:$mlkitTextRecognitionVersion")
+    // المزامنة بين الهاتفين: إذن Google Drive (مجلد التطبيق الخاص فقط)، ومسح رمز الربط بماسح Google بلا صلاحية كاميرا،
+    // ورسم رمز QR محليًا.
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    implementation("com.google.zxing:core:3.5.3")
     implementation("cz.adaptech.tesseract4android:tesseract4android:$tesseract4androidVersion")
     tesseractAar("cz.adaptech.tesseract4android:tesseract4android:$tesseract4androidVersion@aar")
 

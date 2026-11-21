@@ -107,4 +107,25 @@
     <string name="replace_body">هل تريد استبدالها بالصورة الجديدة؟</string>
     <string name="replace_confirm">استبدال</string>
     <string name="replace_keep">متابعة الحالية</string>
+    <string name="sync_title">المزامنة بين هاتفيك</string>
+    <string name="sync_off_line">ربط هاتفك الثاني</string>
+    <string name="sync_on">المزامنة مفعّلة</string>
+    <string name="sync_running">جارٍ المزامنة…</string>
+    <string name="sync_ok_at">متزامن · %1$s</string>
+    <string name="sync_needs_access">المزامنة تحتاج إذن Google Drive</string>
+    <string name="sync_offline">لا إنترنت: ستتم المزامنة لاحقًا</string>
+    <string name="sync_failed">تعذّرت المزامنة</string>
+    <string name="sync_explain">الدفعات تظهر على هاتفيك معًا. تُشفّر على الهاتف قبل أن تُحفظ في Google Drive الخاص بك، والمفتاح في هاتفيك فقط: لا يستطيع أحد غيرك قراءتها. يجب أن يكون الهاتفان على حساب Google نفسه.</string>
+    <string name="sync_pair_first">هذا الهاتف الأول: اعرض الرمز</string>
+    <string name="sync_pair_scan">هذا الهاتف الثاني: امسح الرمز</string>
+    <string name="sync_qr_title">امسح هذا الرمز من الهاتف الآخر</string>
+    <string name="sync_qr_hint">على الهاتف الآخر: افتح التطبيق ← «ربط هاتفك الثاني» ← «هذا الهاتف الثاني». تأكد أن رمز التحقق نفسه يظهر على الهاتفين. لا تُصوّر هذا الرمز ولا تُرسله لأحد.</string>
+    <string name="sync_check_code">رمز التحقق: %1$s</string>
+    <string name="sync_done">تم</string>
+    <string name="sync_grant">السماح بالوصول إلى Google Drive</string>
+    <string name="sync_now">مزامنة الآن</string>
+    <string name="sync_show_code">عرض رمز الربط</string>
+    <string name="sync_stop">إيقاف المزامنة على هذا الهاتف</string>
+    <string name="sync_stop_confirm">اضغط مرة أخرى للتأكيد</string>
+    <string name="sync_bad_qr">هذا ليس رمز ربط Binaa OCR.</string>
 </resources>

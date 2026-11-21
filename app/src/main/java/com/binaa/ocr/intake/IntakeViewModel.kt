@@ -165,6 +165,11 @@ class IntakeViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (ok) {
                 runCatching { com.binaa.ocr.ui.home.PendingBadge.update(getApplication(), withContext(Dispatchers.IO) { payments.pending().size }) }
+                // الدفعة إلى الهاتف الآخر فورًا (إن كانت المزامنة مفعّلة)، ولو أُغلقت الشاشة.
+                val app = getApplication<Application>()
+                com.binaa.ocr.sync.SyncEngine.syncInBackground(app) {
+                    runCatching { com.binaa.ocr.ui.home.PendingBadge.update(app, payments.pending().size) }
+                }
                 job?.cancel()
                 _state.value = IntakeUiState(closed = true, saved = true)
             } else {

@@ -17,5 +17,7 @@
         <include domain="database" path="." />
         <include domain="sharedpref" path="." />
         <exclude domain="file" path="intake/" />
+        <!-- مفتاح المزامنة لا يُفك إلا على هذا الهاتف (Keystore): على الهاتف الجديد يُربط من جديد برمز QR. -->
+        <exclude domain="file" path="sync/" />
     </device-transfer>
 </data-extraction-rules>

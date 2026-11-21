@@ -1,10 +1,8 @@
 package com.binaa.ocr.intake
 
-import android.Manifest
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -77,8 +75,7 @@ class IntakeHeaderInstrumentedTest {
 
     @Test
     fun sharedViewerScreenshot_reachesHeaderEngine_andTheNameIsFound_offline() {
-        // لا صلاحية شبكة: كل ما يلي يجري محليًا (العملية لا تستطيع فتح socket: NetworkDeniedInstrumentedTest).
-        assertEquals(PackageManager.PERMISSION_DENIED, context.checkSelfPermission(Manifest.permission.INTERNET))
+        // كل ما يلي يجري محليًا: المحرّكان لا يتصلان بشيء (HeaderEngine يعمل بلا شبكة: OfflineEnginesInstrumentedTest).
         share(insert("viewer", png(SyntheticHeader.viewer(NAME))))
         val state = awaitState { it.header is HeaderUi.Done }
         val result = (state.header as HeaderUi.Done).result
