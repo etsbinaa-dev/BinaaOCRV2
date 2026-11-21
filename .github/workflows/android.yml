@@ -51,7 +51,14 @@ jobs:
           # الاسم المستعار ليس سرًّا. وفي مخزن PKCS12 كلمة سر المفتاح = كلمة سر المخزن.
           BINAA_V2_KEY_ALIAS: binaa-ocr-v2
           BINAA_V2_KEY_PASSWORD: ${{ secrets.BINAA_V2_KEYSTORE_PASSWORD }}
-        run: ./gradlew :core:test :golden-corpus:test :header-engine:test testDebugUnitTest lintDebug assembleDebug assembleRelease --no-daemon --stacktrace
+        # عند الفشل: أسطر الخطأ تظهر كتعليقات (annotations) على التشغيل، فتُقرأ دون تنزيل السجل.
+        run: |
+          set -o pipefail
+          ./gradlew :core:test :golden-corpus:test :header-engine:test testDebugUnitTest lintDebug assembleDebug assembleRelease --no-daemon --stacktrace 2>&1 | tee "$RUNNER_TEMP/gradle.log" || {
+            grep -E '^e: |error:|Error:|ERROR:|FAILED|Missing class|What went wrong' "$RUNNER_TEMP/gradle.log" | grep -v '^\s*at ' | head -10 | while IFS= read -r l; do echo "::error::${l:0:900}"; done
+            grep -A4 'What went wrong' "$RUNNER_TEMP/gradle.log" | head -8 | tr '\n' ' ' | sed 's/^/::error::/'; echo
+            exit 1
+          }
 
       - name: Remove signing keystore
         if: always()
