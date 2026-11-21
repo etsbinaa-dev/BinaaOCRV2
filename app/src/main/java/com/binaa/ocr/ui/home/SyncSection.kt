@@ -132,10 +132,14 @@ fun SyncSection(status: SyncStatus, qr: SyncKey?, onCommand: (SyncCommand) -> Un
     }
 }
 
-private fun spaced(code: String) = "⁦" + code.chunked(3).joinToString(" ") + "⁩"
+/** عزل اتجاه النص (LTR) للأرقام داخل جملة عربية. */
+private const val LRI = '\u2066'
+private const val PDI = '\u2069'
+
+private fun spaced(code: String) = LRI + code.chunked(3).joinToString(" ") + PDI
 
 private fun hhmm(millis: Long): String = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalTime().let {
-    "⁦" + it.hour.toString().padStart(2, '0') + ":" + it.minute.toString().padStart(2, '0') + "⁩"
+    LRI + it.hour.toString().padStart(2, '0') + ":" + it.minute.toString().padStart(2, '0') + PDI
 }
 
 private fun qrBitmap(text: String, size: Int): ImageBitmap {
