@@ -31,7 +31,7 @@ sealed interface SyncStatus {
     data object Off : SyncStatus
 
     /** [checkCode] = رمز التحقق نفسه على الهاتفين. [problem] = سبب آخر فشل، أو null. */
-    data class On(val checkCode: String, val lastOkMillis: Long? = null, val running: Boolean = false, val problem: SyncProblem? = null) : SyncStatus
+    data class On(val checkCode: String, val lastOkMillis: Long? = null, val running: Boolean = false, val problem: SyncProblem? = null, val detail: String? = null) : SyncStatus
 }
 
 enum class SyncProblem { NEEDS_ACCESS, OFFLINE, FAILED }
@@ -100,24 +100,42 @@ object SyncEngine {
         val key = SyncKeyStore.load(context) ?: return@withLock false.also { _status.value = SyncStatus.Off }
         _status.update { (it as? SyncStatus.On)?.copy(running = true) ?: SyncStatus.On(key.checkCode, running = true) }
         var changed = false
+        var detail: String? = null
         val problem = try {
             changed = run(context, key, token(context))
             null
         } catch (e: NeedsConsent) {
             SyncProblem.NEEDS_ACCESS
+        } catch (e: DriveClient.HttpException) {
+            // 403: Google Drive API غير مفعّلة في المشروع، أو الإذن ناقص.
+            detail = "Drive HTTP ${e.code}"
+            SyncProblem.FAILED
         } catch (e: IOException) {
             SyncProblem.OFFLINE
         } catch (e: Exception) {
+            detail = describe(e)
             SyncProblem.FAILED
         }
         _status.update { cur ->
             val on = cur as? SyncStatus.On ?: SyncStatus.On(key.checkCode)
-            on.copy(running = false, problem = problem, lastOkMillis = if (problem == null) System.currentTimeMillis() else on.lastOkMillis)
+            on.copy(running = false, problem = problem, detail = detail, lastOkMillis = if (problem == null) System.currentTimeMillis() else on.lastOkMillis)
         }
         changed
     }
 
     private class NeedsConsent : Exception()
+
+    /**
+     * سبب الفشل باختصار، للتشخيص على الشاشة (لا بيانات دفع فيه). أخطاء Google برمزها: 10 = إعداد OAuth (اسم الحزمة أو
+     * SHA-1) غير مطابق، 12501 = أُلغي اختيار الحساب، 7 = لا شبكة.
+     */
+    private fun describe(e: Throwable): String {
+        val root = (e as? java.util.concurrent.ExecutionException)?.cause ?: e
+        return when (root) {
+            is com.google.android.gms.common.api.ApiException -> "Google ${root.statusCode}"
+            else -> root.javaClass.simpleName
+        }
+    }
 
     private fun token(context: Context): String {
         val request = AuthorizationRequest.builder().setRequestedScopes(listOf(Scope(DriveClient.SCOPE))).build()

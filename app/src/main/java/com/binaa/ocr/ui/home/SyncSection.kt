@@ -108,6 +108,7 @@ fun SyncSection(status: SyncStatus, qr: SyncKey?, onCommand: (SyncCommand) -> Un
                     } else {
                         Text(stringResource(R.string.sync_check_code, spaced(on.checkCode)), style = MaterialTheme.typography.titleMedium, color = colors.text)
                         Text(line, style = MaterialTheme.typography.bodyMedium, color = if (warn) colors.error else colors.textMuted)
+                        on.detail?.let { Text(LRI + it + PDI, style = MaterialTheme.typography.bodySmall, color = colors.textMuted, modifier = Modifier.testTag("sync-detail")) }
                         if (on.problem == SyncProblem.NEEDS_ACCESS) {
                             Button(onClick = { open = false; onCommand(SyncCommand.GRANT_ACCESS) }, colors = ButtonDefaults.buttonColors(containerColor = colors.brand), modifier = Modifier.fillMaxWidth()) {
                                 Text(stringResource(R.string.sync_grant), color = colors.onBrand)
