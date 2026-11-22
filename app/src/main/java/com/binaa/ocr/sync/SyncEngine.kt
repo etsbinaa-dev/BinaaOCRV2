@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
@@ -83,20 +84,25 @@ object SyncEngine {
     }
 
     /** حذف دفعة هنا: يُبلَّغ الهاتف الآخر في المزامنة التالية. */
-    suspend fun noteDeleted(context: Context, id: String) = mutex.withLock {
+    suspend fun noteDeleted(context: Context, id: String) = withContext(Dispatchers.IO) { mutex.withLock {
         if (SyncKeyStore.load(context) == null) return@withLock
         val f = stateFile(context)
         val s = SyncState.load(f)
         SyncState.save(f, s.copy(pendingDeletes = s.pendingDeletes + id))
-    }
+    } }
 
     fun syncInBackground(context: Context, onDone: () -> Unit = {}) {
         val app = context.applicationContext
         scope.launch { sync(app); onDone() }
     }
 
-    /** مزامنة كاملة الآن. @return true إن تغيّرت دفعات هذا الهاتف. */
-    suspend fun sync(context: Context): Boolean = mutex.withLock {
+    /**
+     * مزامنة كاملة الآن، خارج الخيط الرئيسي دائمًا (Google وDrive يرفضان الانتظار عليه).
+     * @return true إن تغيّرت دفعات هذا الهاتف.
+     */
+    suspend fun sync(context: Context): Boolean = withContext(Dispatchers.IO) { syncLocked(context) }
+
+    private suspend fun syncLocked(context: Context): Boolean = mutex.withLock {
         val key = SyncKeyStore.load(context) ?: return@withLock false.also { _status.value = SyncStatus.Off }
         _status.update { (it as? SyncStatus.On)?.copy(running = true) ?: SyncStatus.On(key.checkCode, running = true) }
         var changed = false
