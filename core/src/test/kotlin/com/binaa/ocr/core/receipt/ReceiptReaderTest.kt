@@ -388,4 +388,19 @@ class ReceiptReaderTest {
         assertEquals(ReceiptField.found(amount("51400.00")), r.amount)
         assertEquals(FieldStatus.NOT_FOUND, r.date.status)
     }
+
+    @Test
+    fun bankily_lookAlikeColonsAndDashes_areStillTheTimeAndDate() {
+        // بعض الهواتف (Honor 400) يخرج فيها الوقت والتاريخ برموز شبيهة: «15꞉14꞉34» و«26‑11‑21».
+        val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), time = "10꞉15꞉42", date = "25‑09‑14")
+        assertEquals(ReceiptField.found(Provider.BANKILY), r.provider)
+        assertEquals(ReceiptField.found(amount("4500.00")), r.amount)
+        assertEquals(LocalDate.of(2025, 9, 14), r.date.value!!.date)
+    }
+
+    @Test
+    fun arabicIndicDigits_areRead() {
+        val r = bankily(arrayOf(W("MRU", 164, 1032), W("٤٥٠٠", 275, 1032), W("34111222", 599, 1032)))
+        assertEquals(ReceiptField.found(amount("4500.00")), r.amount)
+    }
 }

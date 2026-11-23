@@ -155,7 +155,23 @@ object ReceiptReader {
      * ML Kit يُلصق نقطتي «المبلغ المرسل:» بالرقم المجاور في السطر العربي.
      */
     private fun tokens(document: OcrDocument): List<Token> =
-        document.words.mapNotNull { w -> w.box?.let { Token(w.text.trim().trim(':', '：', '؛', ';').trim().let(::withoutGluedResidue), it) } }.filter { it.text.isNotEmpty() }
+        document.words.mapNotNull { w -> w.box?.let { Token(normalized(w.text).trim().trim(':', '؛', ';').trim().let(::withoutGluedResidue), it) } }.filter { it.text.isNotEmpty() }
+
+    /**
+     * أشكال بديلة لنفس الرموز تخرج من ML Kit حسب الهاتف والخط: نقطتان (： ꞉ ∶ ː)، شرطات (‐ ‑ ‒ – — −)، وأرقام عربية هندية.
+     * بدونها لا يطابق «15꞉14꞉34» صيغة الوقت، فلا يُتعرَّف على بنكيلي ولا على مبلغه.
+     */
+    private fun normalized(text: String): String = buildString(text.length) {
+        for (c in text) append(
+            when (c) {
+                '：', '꞉', '∶', 'ː', '˸' -> ':'
+                '‐', '‑', '‒', '–', '—', '−', '﹣', '－' -> '-'
+                in '٠'..'٩' -> '0' + (c - '٠')
+                in '۰'..'۹' -> '0' + (c - '۰')
+                else -> c
+            },
+        )
+    }
 
     /** «12600:al»: ML Kit قد يُلصق بالرقم بقايا الكلمة العربية بعد النقطتين ⇒ الرقم وحده. «12:44:14» و«26-10-02» لا تتغير. */
     private fun withoutGluedResidue(text: String): String = GLUED_RESIDUE.matchEntire(text)?.groupValues?.get(1) ?: text
