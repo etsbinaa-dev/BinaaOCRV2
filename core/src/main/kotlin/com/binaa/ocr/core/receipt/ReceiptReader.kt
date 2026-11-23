@@ -171,12 +171,16 @@ object ReceiptReader {
      * بدونها لا يطابق «15꞉14꞉34» صيغة الوقت، فلا يُتعرَّف على بنكيلي ولا على مبلغه.
      */
     private fun normalized(text: String): String = buildString(text.length) {
-        for (c in text) append(
+        // محارف غير مرئية (اتجاه النص، عرض صفري) قد تلتصق بالأرقام فتمنع مطابقتها: تُحذف.
+        for (c in text) if (Character.getType(c) != Character.FORMAT.toInt()) append(
             when (c) {
                 '：', '꞉', '∶', 'ː', '˸' -> ':'
                 '‐', '‑', '‒', '–', '—', '−', '﹣', '－' -> '-'
                 in '٠'..'٩' -> '0' + (c - '٠')
                 in '۰'..'۹' -> '0' + (c - '۰')
+                // O كيريلية ويونانية تشبه اللاتينية تمامًا.
+                'О', 'Ο' -> 'O'
+                'о', 'ο' -> 'o'
                 else -> c
             },
         )
@@ -195,8 +199,12 @@ object ReceiptReader {
         val words = tokens(document).filter { it.box.bottom > bodyTop && it.box.bottom <= bodyBottom }
         return rows(words).filter { row -> row.any { t -> t.text.any { it.isDigit() } || t.text.contains("MRU", true) } }
             .take(40)
-            .map { row -> "y${row.first().box.top}: " + row.joinToString("  ") { "«${it.text}»" } }
+            .map { row -> "y${row.first().box.top}: " + row.joinToString("  ") { "«${visible(it.text)}»" } }
     }
+
+    /** للتشخيص: في كلمة فيها أرقام، كل محرف غير ASCII يظهر برمزه (U+041E) فيُعرف الشبيه الذي يمنع المطابقة. */
+    private fun visible(text: String): String =
+        if (text.none { it.isDigit() }) text else text.map { c -> if (c.code in 32..126) c.toString() else "‹U+%04X›".format(c.code) }.joinToString("")
 
     private class Token(val text: String, val box: PixelBox) {
         val cy get() = (box.top + box.bottom) / 2

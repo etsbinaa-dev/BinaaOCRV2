@@ -419,4 +419,11 @@ class ReceiptReaderTest {
         val r = read(W("12", 590, 825, 50), W("500,00", 655, 825, 130), W("MRU", 160, 895), W("TRO12345678", 612, 1052), W("20-07-2026", 536, 1160))
         assertEquals(listOf(Provider.SEDAD, Provider.BCIPAY), r.provider.candidates)
     }
+
+    @Test
+    fun bankily_idWithCyrillicOAndAnInvisibleMark_isStillTheId() {
+        val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), id = "\u200E11250914101512\u041E4567")
+        assertEquals(ReceiptField.found(Provider.BANKILY), r.provider)
+        assertEquals(ReceiptField.found(amount("4500.00")), r.amount)
+    }
 }
