@@ -347,4 +347,27 @@ class HeaderDetectorTest {
         assertEquals(2, l.icons.size)
         assertNotNull(d.nameImage)
     }
+
+    @Test
+    fun tallStatusBar_ofAnotherColour_theHeaderBelowItIsStillFound() {
+        // كما على Honor 400: شريط حالة داكن طويل (أيقوناته البيضاء فيه)، ثم شريط الرأس الرمادي الشفاف أدنى من المعتاد،
+        // فأيقونات الرأس تحت 8% من الارتفاع، وخلفية أعلى الصورة ليست خلفية الرأس.
+        val bar = 0xFF9A9EA3.toInt()
+        val c = canvas(bar).apply {
+            rect(0, 0, 1080, 105, dark)
+            rect(880, 50, 910, 80, white); rect(930, 50, 960, 80, white); rect(990, 52, 1040, 78, white) // إشارة، Wi-Fi، بطارية
+            rect(49, 181, 96, 227, white)       // سهم الرجوع
+            rect(718, 182, 770, 231, white)     // ☆
+            rect(858, 184, 902, 225, white)     // ↪
+            var x = 148; while (x < 450) { rect(x, 151, minOf(x + 30, 450), 200, white); x += 40 }
+            rect(146, 232, 400, 260, white)     // subtitle
+        }
+        val d = HeaderDetector.detect(c.image())
+        assertNull(d.rejection)
+        assertEquals(listOf(Box(718, 182, 770, 231), Box(858, 184, 902, 225)), d.layout!!.icons)
+        assertEquals(Box(148, 151, 450, 200), d.layout!!.name)
+        assertTrue("the header bar ends below the name", d.layout!!.headerBar.b > 200)
+        assertNotNull(d.nameImage)
+        assertTrue(d.nameImage!!.box.t < 151 && d.nameImage!!.box.b > 200)
+    }
 }

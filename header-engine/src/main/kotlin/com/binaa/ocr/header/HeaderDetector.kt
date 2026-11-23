@@ -113,7 +113,38 @@ object HeaderDetector {
         // إشعار في صورة الإيصال خلف شريط WhatsApp الشفاف: نصه الداكن يلتصق بالأيقونات فيغيّر حجمها.
         // أيقونات WhatsApp أفتح دائمًا من الشريط ⇒ إعادة البحث بالبكسلات الأفتح فقط. رفض فقط يُعاد فحصه؛ ما قُبل لا يتغير.
         val bright = detectLtr(zone, image.width, image.height, brighterIconsOnly = true)
-        return if (bright.headerFound) bright else d
+        if (bright.headerFound) return bright
+        // شريط حالة أطول (Honor 400: أيقونات الرأس عند ~9% من الارتفاع) ولون مختلف عن الرأس: يُعاد البحث في نافذة تبدأ
+        // تحت شريط الحالة، فتصير خلفية الرأس هي الغالبة والأيقونات داخل منطقة البحث. رفض فقط يُعاد فحصه.
+        for (fraction in STATUS_BAR_SKIPS) {
+            val off = (image.height * fraction).toInt()
+            val win = Array(zoneH) { y -> IntArray(image.width) { x -> image.argb[min(image.height - 1, y + off) * image.width + x] } }
+            for (brighter in listOf(false, true)) {
+                val shifted = detectLtr(win, image.width, image.height, brighterIconsOnly = brighter)
+                if (shifted.headerFound) return shifted.movedDown(off)
+            }
+        }
+        return d
+    }
+
+    /** نسب ارتفاع شريط الحالة المجرَّبة بعد فشل البحث من أعلى الصورة. */
+    private val STATUS_BAR_SKIPS = listOf(0.035, 0.05)
+
+    private fun Box.down(dy: Int) = Box(l, t + dy, r, b + dy)
+
+    /** نتيجة نافذة تبدأ عند [dy]: كل المواضع بإحداثيات الصورة الكاملة؛ شريط الرأس يبقى من أعلى الصورة. */
+    private fun Detection.movedDown(dy: Int): Detection {
+        val l = layout ?: return this
+        val moved = l.copy(
+            headerBar = Box(0, 0, l.headerBar.r, l.headerBar.b + dy),
+            arrow = l.arrow?.down(dy),
+            icons = l.icons.map { it.down(dy) },
+            iconCluster = l.iconCluster.down(dy),
+            name = l.name?.down(dy),
+            subtitle = l.subtitle?.down(dy),
+            avatar = l.avatar?.down(dy),
+        )
+        return Detection(moved, rejection, nameImage?.let { NameImage(it.box.down(dy), it.argb) })
     }
 
     private fun rgb(p: Int) = intArrayOf((p shr 16) and 255, (p shr 8) and 255, p and 255)
