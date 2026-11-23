@@ -403,4 +403,20 @@ class ReceiptReaderTest {
         val r = bankily(arrayOf(W("MRU", 164, 1032), W("٤٥٠٠", 275, 1032), W("34111222", 599, 1032)))
         assertEquals(ReceiptField.found(amount("4500.00")), r.amount)
     }
+
+    @Test
+    fun bankily_transactionIdWithALetterOForAZero_isStillTheId() {
+        // كما على Honor 400: «…4327O000» (حرف O مكان صفر) في معرّف المعاملة.
+        val r = bankily(arrayOf(W("MRU", 164, 1032), W("4500", 275, 1032), W("34111222", 599, 1032)), id = "11250914101512O4567")
+        assertEquals(ReceiptField.found(Provider.BANKILY), r.provider)
+        assertEquals(ReceiptField.found(amount("4500.00")), r.amount)
+        assertEquals(LocalDate.of(2025, 9, 14), r.date.value!!.date)
+    }
+
+    @Test
+    fun ordinaryWords_withO_areUnchanged() {
+        // «MRU» و«TRO12345678» (معرّف السداد) لا يتغيران: الأول بلا أرقام، والثاني فيه حروف غير شبيهة.
+        val r = read(W("12", 590, 825, 50), W("500,00", 655, 825, 130), W("MRU", 160, 895), W("TRO12345678", 612, 1052), W("20-07-2026", 536, 1160))
+        assertEquals(listOf(Provider.SEDAD, Provider.BCIPAY), r.provider.candidates)
+    }
 }

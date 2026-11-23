@@ -155,7 +155,16 @@ object ReceiptReader {
      * ML Kit يُلصق نقطتي «المبلغ المرسل:» بالرقم المجاور في السطر العربي.
      */
     private fun tokens(document: OcrDocument): List<Token> =
-        document.words.mapNotNull { w -> w.box?.let { Token(normalized(w.text).trim().trim(':', '؛', ';').trim().let(::withoutGluedResidue), it) } }.filter { it.text.isNotEmpty() }
+        document.words.mapNotNull { w -> w.box?.let { Token(normalized(w.text).trim().trim(':', '؛', ';').trim().let(::withoutGluedResidue).let(::digitsMisread), it) } }.filter { it.text.isNotEmpty() }
+
+    /**
+     * رقم طويل (معرّف، هاتف) قرأ ML Kit بعض أرقامه حروفًا شبيهة: «112611211514327O000» ⇒ O = 0، و I l | = 1.
+     * فقط في كلمة أغلبها أرقام (8 أرقام أو أكثر) وحروفها الأخرى من هذه الشبيهات وحدها، فلا تتغير الكلمات العادية.
+     */
+    private fun digitsMisread(text: String): String {
+        if (text.count { it.isDigit() } < 8 || !text.all { it.isDigit() || it in "OoIl|" }) return text
+        return text.map { c -> when (c) { 'O', 'o' -> '0'; 'I', 'l', '|' -> '1'; else -> c } }.joinToString("")
+    }
 
     /**
      * أشكال بديلة لنفس الرموز تخرج من ML Kit حسب الهاتف والخط: نقطتان (： ꞉ ∶ ː)، شرطات (‐ ‑ ‒ – — −)، وأرقام عربية هندية.
